@@ -1630,6 +1630,99 @@
                  const currentYear = today.getFullYear();
                  const annualIncome = calculateAnnualIncome(activeProfile, currentYear);
 
+                 // Adjustment Modal State
+                 const [isAdjModalOpen, setIsAdjModalOpen] = useState(false);
+                 const [adjFormData, setAdjFormData] = useState({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: 0, note: '' });
+
+                 const handleOpenAdjModal = (adj = null) => {
+                     if (adj) {
+                         setAdjFormData(adj);
+                     } else {
+                         setAdjFormData({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: '', note: '' });
+                     }
+                     setIsAdjModalOpen(true);
+                 };
+
+                 const handleSaveAdj = () => {
+                     if (!adjFormData.amount && adjFormData.amount !== 0) {
+                         showAlert("金額を入力してください");
+                         return;
+                     }
+                     
+                     const newAdj = {
+                         ...adjFormData,
+                         amount: parseInt(adjFormData.amount)
+                     };
+
+                     if (adjFormData.id) {
+                         // Update
+                         const others = activeProfile.adjustments.filter(a => a.id !== adjFormData.id);
+                         updateProfile({ adjustments: [...others, newAdj] });
+                     } else {
+                         // Add
+                         updateProfile({ adjustments: [...activeProfile.adjustments, { ...newAdj, id: generateId() }] });
+                     }
+                     setIsAdjModalOpen(false);
+                 };
+
+                 const handleDeleteAdj = (id) => {
+                     showConfirm("この手当・調整を削除しますか？", () => {
+                         updateProfile({ adjustments: activeProfile.adjustments.filter(a => a.id !== id) });
+                     });
+                 };
+                 
+                 // CSV Download Logic
+                 const downloadReportCsv = () => {
+                     // BOM for Excel (Japanese characters)
+                     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                     let csvContent = "日付,バイト先,開始時間,終了時間,休憩(分),区分,概算給与\n";
+                     
+                     // Filter records for current year
+                     const yearRecords = activeProfile.records.filter(r => new Date(r.start).getFullYear() === currentYear);
+                     
+                     // Sort by date
+                     yearRecords.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+                     yearRecords.forEach(r => {
+                         const job = activeProfile.jobs.find(j => j.id === r.jobId);
+                         if (!job) return;
+                         
+                         const dateObj = new Date(r.start);
+                         const date = `${dateObj.getFullYear()}/${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+                         const startTime = new Date(r.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                         const endTime = new Date(r.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                         const type = r.type === 'actual' ? '実績' : '予定';
+                         const salary = calculateShiftSalary(r, job);
+                         
+                         csvContent += `${date},${job.name},${startTime},${endTime},${r.breakMinutes},${type},${salary}\n`;
+                     });
+
+                     // Add Adjustments
+                     const yearAdjustments = activeProfile.adjustments.filter(a => a.month.startsWith(`${currentYear}-`));
+                     if (yearAdjustments.length > 0) {
+                         csvContent += "\n--- 手当・ボーナス・調整 ---\n";
+                         csvContent += "対象月,内容,金額\n";
+                         yearAdjustments.forEach(adj => {
+                             csvContent += `${adj.month},${adj.note},${adj.amount}\n`;
+                         });
+                     }
+                     
+                     // Create Blob and Link
+                     const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+                     const url = URL.createObjectURL(blob);
+                     const link = document.createElement("a");
+                     link.setAttribute("href", url);
+                     link.setAttribute("download", `baitocalc_report_${currentYear}.csv`);
+                     document.body.appendChild(link);
+                     link.click();
+                     document.body.removeChild(link);
+                 };
+
+                 // Filter adjustments for current year for display
+                 const currentYearAdjustments = (activeProfile.adjustments || [])
+                    .filter(a => a.month.startsWith(`${currentYear}-`))
+                    .sort((a, b) => a.month.localeCompare(b.month));
+
                  // グラフ用データの計算（最大値を動的に取得）
                  const chartData = useMemo(() => {
                      const data = [];
@@ -1683,12 +1776,103 @@
                                 </div>
                              </div>
                          </div>
-                         <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100 flex items-start gap-2">
-                             <Info size={16} className="mt-0.5 shrink-0" />
-                             <div>
-                                 CSV出力機能を使って、確定申告や家計簿アプリへの連携に活用してください。
+
+                         {/* Adjustments Section */}
+                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                                    <DollarSign size={16} />
+                                    手当・ボーナス・調整
+                                </h3>
+                                <button onClick={() => handleOpenAdjModal()} className={`text-xs font-bold flex items-center gap-1 hover:bg-gray-50 p-2 rounded transition-colors ${currentTheme.text}`}>
+                                    <Plus size={14} /> 追加
+                                </button>
+                            </div>
+                            {currentYearAdjustments.length === 0 ? (
+                                <div className="text-center text-gray-400 text-xs py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                    登録された手当はありません
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {currentYearAdjustments.map(adj => (
+                                        <div key={adj.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-bold text-gray-700 text-sm">{adj.month.split('-')[1]}月</span>
+                                                    {adj.note && <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{adj.note}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`font-bold ${adj.amount >= 0 ? 'text-gray-800' : 'text-red-500'}`}>{formatCurrency(adj.amount)}</span>
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => handleOpenAdjModal(adj)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 size={14} /></button>
+                                                    <button onClick={() => handleDeleteAdj(adj.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={14} /></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="text-right text-xs text-gray-400 pt-2 border-t border-dashed mt-2">
+                                        合計: {formatCurrency(currentYearAdjustments.reduce((sum, a) => sum + parseInt(a.amount), 0))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                         <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100 flex flex-col gap-3">
+                             <div className="flex items-start gap-2">
+                                 <Info size={16} className="mt-0.5 shrink-0" />
+                                 <div>
+                                     CSV出力機能を使って、確定申告や家計簿アプリへの連携に活用してください。
+                                 </div>
                              </div>
+                             <button 
+                                onClick={downloadReportCsv} 
+                                className={`self-end ${currentTheme.bg} text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm`}
+                             >
+                                <Download size={14} />
+                                {currentYear}年分をダウンロード
+                             </button>
                          </div>
+
+                         {/* Adjustment Modal */}
+                         <Modal isOpen={isAdjModalOpen} onClose={() => setIsAdjModalOpen(false)} title={adjFormData.id ? "手当・調整を編集" : "手当・調整を追加"}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm text-gray-600 mb-1">対象月</label>
+                                    <input 
+                                        type="month" 
+                                        className="w-full p-2 border rounded bg-gray-50"
+                                        value={adjFormData.month}
+                                        onChange={(e) => setAdjFormData({...adjFormData, month: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-600 mb-1">金額 (円)</label>
+                                    <input 
+                                        type="number" 
+                                        className="w-full p-2 border rounded"
+                                        placeholder="例: 10000"
+                                        value={adjFormData.amount}
+                                        onChange={(e) => setAdjFormData({...adjFormData, amount: e.target.value})}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSaveAdj()}
+                                        autoFocus
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">※マイナスの値を入力すると控除になります</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-600 mb-1">名目・備考</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full p-2 border rounded"
+                                        placeholder="例: 夏のボーナス、交通費など"
+                                        value={adjFormData.note}
+                                        onChange={(e) => setAdjFormData({...adjFormData, note: e.target.value})}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSaveAdj()}
+                                    />
+                                </div>
+                                <button onClick={handleSaveAdj} className={`w-full py-3 text-white font-bold rounded-xl mt-4 ${currentTheme.bg}`}>保存</button>
+                            </div>
+                        </Modal>
                      </div>
                  );
             };
