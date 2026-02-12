@@ -48,7 +48,7 @@
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #f1f1f1; 
+            background: transparent; 
         }
         ::-webkit-scrollbar-thumb {
             background: #cbd5e1; 
@@ -57,9 +57,12 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8; 
         }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .font-serif { font-family: "Merriweather", "Georgia", serif; }
+        .font-mono { font-family: "Courier New", monospace; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased">
+<body class="text-gray-800 antialiased">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -103,12 +106,18 @@
 
         const generateId = () => Math.random().toString(36).substr(2, 9);
         
-        // Date Utilities customized for "Test Mode"
         const getToday = (testDateStr) => {
             return testDateStr ? new Date(testDateStr) : new Date();
         };
 
-        const formatDate = (date) => date.toISOString().split('T')[0];
+        // 修正: toISOString() を使うと UTC 時間での文字列になり、日本の午前9時以前だと前日になってしまう問題を解消。
+        // ローカル時間ベースで 'YYYY-MM-DD' を返すように変更。
+        const formatDate = (date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
         
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(amount);
@@ -116,7 +125,6 @@
 
         const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 
-        // 日付の差分計算（時刻を無視して日数のみで比較）
         const getDaysUntil = (targetDate, baseDate) => {
             const target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
             const base = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
@@ -124,7 +132,7 @@
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         };
 
-        // --- Initial State Templates ---
+        // --- Theme Definitions ---
 
         const THEMES = {
             indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50' },
@@ -148,9 +156,9 @@
             theme: 'indigo',
             taxLimit: 1030000,
             jobs: [],
-            records: [], // { id, jobId, type: 'plan'|'actual', start: ISO, end: ISO, breakMins: 0 }
-            events: [], // { id, title, start: ISO, end: ISO }
-            adjustments: [] // { id, month: 'YYYY-MM', amount: 0, note: '' }
+            records: [], 
+            events: [],
+            adjustments: [] 
         };
 
         // --- Calculation Engine ---
@@ -164,28 +172,22 @@
             const durationMs = end - start;
             const durationMins = durationMs / 1000 / 60;
             
-            // 休憩時間を引く
             const workMins = Math.max(0, durationMins - (shift.breakMinutes || 0));
             if (workMins <= 0) return 0;
 
-            // 時給履歴から適用される時給を取得
             const sortedHistory = [...(job.wageHistory || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
             const applicableWageObj = sortedHistory.find(h => new Date(h.date) <= start) || { wage: 0 };
             const baseWage = parseInt(applicableWageObj.wage);
 
-            // 分単位でループして計算（精密計算）
             let current = new Date(start);
             let calculatedMins = 0;
             
-            // 1分ごとの単価を積み上げ
             while (current < end) {
-                // 曜日ボーナス
-                const day = current.getDay(); // 0:Sun, 6:Sat
+                const day = current.getDay(); 
                 let weekendBonus = 0;
                 if (day === 0) weekendBonus = parseInt(job.weekendBonus?.sun || 0);
                 if (day === 6) weekendBonus = parseInt(job.weekendBonus?.sat || 0);
 
-                // 時間帯ボーナス
                 const hour = current.getHours();
                 const timeBonus = parseInt(job.timeBonus?.[hour] || 0);
 
@@ -196,13 +198,11 @@
                 calculatedMins++;
             }
             
-            // 休憩控除: 平均時給で控除する
             if (calculatedMins > 0 && shift.breakMinutes > 0) {
                 const avgWage = totalSalary / calculatedMins;
                 totalSalary -= avgWage * shift.breakMinutes;
             }
 
-            // 特定日ボーナス (1勤務1回)
             const shiftDateKey = formatDate(start);
             if (job.dateBonus && job.dateBonus[shiftDateKey]) {
                 totalSalary += parseInt(job.dateBonus[shiftDateKey]);
@@ -219,7 +219,6 @@
             let planned = 0;
             let jobBreakdown = {};
 
-            // Shifts
             profile.records.forEach(record => {
                 const recDate = new Date(record.start);
                 if (recDate >= startOfMonth && recDate <= endOfMonth) {
@@ -239,7 +238,6 @@
                 }
             });
 
-            // Adjustments
             const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
             profile.adjustments.forEach(adj => {
                 if (adj.month === monthStr) {
@@ -259,7 +257,7 @@
             return total;
         };
 
-        // --- Components ---
+        // --- Independent UI Components ---
 
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
@@ -280,7 +278,6 @@
             );
         };
 
-        // Custom Dialog Component to replace alert/confirm
         const Dialog = ({ isOpen, type, message, onConfirm, onCancel }) => {
             if (!isOpen) return null;
             return (
@@ -321,1692 +318,962 @@
             </div>
         );
 
-        // --- Main App Component ---
+        // --- Screen Components ---
 
+        const Dashboard = ({ activeProfile, today, theme, monthReport }) => {
+            const [message, setMessage] = useState(null);
+
+            const upcomingEvents = useMemo(() => {
+                const now = new Date();
+                return activeProfile.events
+                    .filter(e => new Date(e.end) >= now)
+                    .sort((a, b) => new Date(a.start) - new Date(b.start))
+                    .slice(0, 3);
+            }, [activeProfile.events, today]);
+
+            const upcomingPaydays = (activeProfile.jobs || []).map(job => {
+                if (!job.payDay) return null;
+                const pd = parseInt(job.payDay);
+                let targetDate = new Date(today.getFullYear(), today.getMonth(), pd);
+                if (targetDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+                    targetDate = new Date(today.getFullYear(), today.getMonth() + 1, pd);
+                }
+                const diffDays = getDaysUntil(targetDate, today);
+                return { job: job.name, days: diffDays, date: targetDate };
+            }).filter(Boolean).sort((a, b) => a.days - b.days);
+
+            useEffect(() => {
+                const m = today.getMonth() + 1;
+                const d = today.getDate();
+                if (m === 1 && d === 29) {
+                    setMessage({ text: "真深子さん、お誕生日おめでとうございます！素敵な1年になりますように。", type: 'secret' });
+                } else if (m === 7 && d === 16) {
+                    setMessage({ text: "理紗子さん、お誕生日おめでとうございます！素晴らしい1年を。", type: 'secret' });
+                } else {
+                    const nearPayday = upcomingPaydays.find(p => p.days <= 5 && p.days >= 0);
+                    if (nearPayday) {
+                        setMessage({ text: `もうすぐ給料日！ (${nearPayday.job}: あと${nearPayday.days}日) 今月もお疲れ様です！`, type: 'cheer' });
+                    } else if (today.getDate() === 1) {
+                        setMessage({ text: "新しい月が始まりました！今月も目標に向けて頑張りましょう。", type: 'info' });
+                    } else {
+                        const todayEvent = activeProfile.events.find(e => {
+                            const eDate = new Date(e.start);
+                            return eDate.getDate() === today.getDate() && eDate.getMonth() === today.getMonth();
+                        });
+                        if (todayEvent) {
+                            setMessage({ text: `今日は「${todayEvent.title}」の日です！楽しんでください。`, type: 'event' });
+                        } else {
+                            setMessage(null);
+                        }
+                    }
+                }
+            }, [today, activeProfile]);
+
+            return (
+                <div className="space-y-4 pb-20">
+                    <div className={`${theme.bg} p-6 rounded-2xl text-white shadow-lg relative overflow-hidden`}>
+                            <div className="absolute top-0 right-0 p-4 opacity-20">
+                            <DollarSign size={100} />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">こんにちは、{activeProfile.name}さん</h2>
+                        <p className="opacity-90">{today.toLocaleDateString('ja-JP', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        
+                        {message && ( 
+                            <div className="mt-4 bg-white/20 backdrop-blur-sm p-3 rounded-lg border border-white/30 animate-pulse">
+                                <div className="flex items-center gap-2">
+                                    <Heart className="text-pink-300 fill-current" />
+                                    <span className="font-bold">{message.text}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {upcomingEvents.length > 0 && (
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <h3 className="text-gray-500 text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
+                                <Gift size={16} /> 今後のイベント
+                            </h3>
+                            <div className="space-y-2">
+                                {upcomingEvents.map(event => {
+                                    const startDate = new Date(event.start);
+                                    const diffDays = getDaysUntil(startDate, today);
+                                    return (
+                                        <div key={event.id} className="flex justify-between items-center p-2 bg-pink-50 rounded-lg border border-pink-100">
+                                            <div>
+                                                <div className="font-bold text-gray-800">{event.title}</div>
+                                                <div className="text-xs text-gray-500">{startDate.toLocaleDateString()}</div>
+                                            </div>
+                                            <div className="text-xs font-bold text-pink-500">
+                                                {diffDays === 0 ? '今日' : diffDays > 0 ? `あと${diffDays}日` : '終了'}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {upcomingPaydays.length > 0 && (
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <h3 className="text-gray-500 text-sm font-bold mb-3 uppercase tracking-wider">次の給料日</h3>
+                            <div className="space-y-4">
+                                {upcomingPaydays.map((payday, idx) => (
+                                    <div key={idx} className="flex items-center justify-between border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                                        <div>
+                                            <span className="text-md font-bold text-gray-800">{payday.job}</span>
+                                            <div className="text-xs text-gray-500">{payday.date.toLocaleDateString()}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`text-2xl font-bold ${theme.text}`}>
+                                                {payday.days === 0 ? '今日' : `あと${payday.days}日`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <div className="mb-2">
+                                <div className="text-gray-500 text-xs mb-1">今月の確定実績</div>
+                                <div className="text-xl font-bold text-gray-800">{formatCurrency(monthReport.confirmed)}</div>
+                            </div>
+                            <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1 overflow-y-auto max-h-[120px]">
+                                {activeProfile.jobs.map(job => {
+                                    const data = monthReport.jobBreakdown[job.id] || { confirmed: 0 };
+                                    return (
+                                        <div key={job.id} className="flex justify-between items-center text-xs">
+                                            <span className="flex items-center gap-1 overflow-hidden">
+                                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: job.color }}></div>
+                                                <span className="text-gray-600 truncate">{job.name}</span>
+                                            </span>
+                                            <span className="shrink-0">{formatCurrency(data.confirmed)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <div className="mb-2">
+                                <div className="text-gray-500 text-xs mb-1">見込み合計</div>
+                                <div className={`text-xl font-bold ${theme.text}`}>{formatCurrency(monthReport.total)}</div>
+                            </div>
+                            <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1 overflow-y-auto max-h-[120px]">
+                                {activeProfile.jobs.map(job => {
+                                    const data = monthReport.jobBreakdown[job.id] || { confirmed: 0, planned: 0 };
+                                    const total = (data.confirmed || 0) + (data.planned || 0);
+                                    return (
+                                        <div key={job.id} className="flex justify-between items-center text-xs">
+                                            <span className="flex items-center gap-1 overflow-hidden">
+                                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: job.color }}></div>
+                                                <span className="text-gray-600 truncate">{job.name}</span>
+                                            </span>
+                                            <span className="shrink-0">{formatCurrency(total)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-bold text-gray-700">扶養控除リミット</h3>
+                            <span className="text-xs text-gray-500">{formatCurrency(activeProfile.taxLimit)}</span>
+                        </div>
+                        {(() => {
+                            const annual = calculateAnnualIncome(activeProfile, today.getFullYear());
+                            const percentage = Math.min(100, (annual / activeProfile.taxLimit) * 100);
+                            let barColor = 'bg-blue-500';
+                            if (percentage > 80) barColor = 'bg-yellow-500';
+                            if (percentage > 95) barColor = 'bg-red-500';
+
+                            return (
+                                <div>
+                                    <div className="w-full bg-gray-200 rounded-full h-4 mb-1 overflow-hidden">
+                                        <div className={`${barColor} h-4 rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-gray-600">
+                                        <span>現在: {formatCurrency(annual)}</span>
+                                        <span>残り: {formatCurrency(activeProfile.taxLimit - annual)}</span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            );
+        };
+
+        const Schedule = ({ activeProfile, today, theme, updateProfile, showAlert, showConfirm }) => {
+            const [currentDate, setCurrentDate] = useState(today);
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [modalMode, setModalMode] = useState('add'); 
+            const [editingRecord, setEditingRecord] = useState(null);
+            const [activeTab, setActiveTab] = useState('shift'); 
+            const [formData, setFormData] = useState({
+                jobId: '', type: 'planned', startParams: { h: '09', m: '00' }, endParams: { h: '17', m: '00' }, breakMinutes: 60, eventTitle: ''
+            });
+
+            const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+            const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+
+            const openAddModal = (day) => {
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                setSelectedDate(dateStr);
+                setEditingRecord(null);
+                setFormData({ ...formData, jobId: activeProfile.jobs[0]?.id || '', eventTitle: '' });
+                setActiveTab('shift');
+                setModalMode('add');
+                setIsModalOpen(true);
+            };
+
+            const openEditModal = (item, type) => {
+                const d = new Date(item.start);
+                // 修正: d.toISOString() を使わず、ローカル時間ベースで formatDate を呼び出しているので正常に動作します。
+                setSelectedDate(formatDate(d));
+                setEditingRecord(item);
+                const start = new Date(item.start);
+                const end = new Date(item.end);
+                
+                if (type === 'shift') {
+                    setFormData({
+                        ...formData,
+                        jobId: item.jobId,
+                        type: item.type,
+                        startParams: { h: String(start.getHours()).padStart(2,'0'), m: String(start.getMinutes()).padStart(2,'0') },
+                        endParams: { h: String(end.getHours()).padStart(2,'0'), m: String(end.getMinutes()).padStart(2,'0') },
+                        breakMinutes: item.breakMinutes
+                    });
+                    setActiveTab('shift');
+                } else {
+                    setFormData({
+                        ...formData,
+                        eventTitle: item.title,
+                        startParams: { h: String(start.getHours()).padStart(2,'0'), m: String(start.getMinutes()).padStart(2,'0') },
+                        endParams: { h: String(end.getHours()).padStart(2,'0'), m: String(end.getMinutes()).padStart(2,'0') },
+                    });
+                    setActiveTab('event');
+                }
+                setModalMode('edit');
+                setIsModalOpen(true);
+            };
+
+            const handleSave = () => {
+                const startStr = `${selectedDate}T${formData.startParams.h}:${formData.startParams.m}:00`;
+                let endStr = `${selectedDate}T${formData.endParams.h}:${formData.endParams.m}:00`;
+                if (new Date(endStr) <= new Date(startStr)) {
+                    const nextDay = new Date(selectedDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    endStr = `${formatDate(nextDay)}T${formData.endParams.h}:${formData.endParams.m}:00`;
+                }
+                const newStart = new Date(startStr);
+                const newEnd = new Date(endStr);
+
+                if (activeTab === 'shift') {
+                    if (!formData.jobId) { showAlert("バイト先を選択してください"); return; }
+                    const record = { jobId: formData.jobId, type: formData.type, start: startStr, end: endStr, breakMinutes: parseInt(formData.breakMinutes) };
+                    const others = modalMode === 'add' ? activeProfile.records : activeProfile.records.filter(r => r.id !== editingRecord.id);
+                    const overlapShift = others.find(r => {
+                        if (r.type !== record.type) return false;
+                        const rStart = new Date(r.start);
+                        const rEnd = new Date(r.end);
+                        return (newStart < rEnd && newEnd > rStart);
+                    });
+
+                    if (overlapShift) {
+                        const oStart = new Date(overlapShift.start);
+                        const oEnd = new Date(overlapShift.end);
+                        const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${String(oStart.getHours()).padStart(2, '0')}:${String(oStart.getMinutes()).padStart(2, '0')} - ${String(oEnd.getHours()).padStart(2, '0')}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
+                        showAlert(`${record.type === 'planned' ? '予定' : '実績'}時間が以下の記録と重複しているため登録できません。\n\n重複対象: ${timeStr}`);
+                        return;
+                    }
+                    if (record.type === 'planned') {
+                        const overlapEvent = activeProfile.events.find(e => {
+                            const eStart = new Date(e.start);
+                            const eEnd = new Date(e.end);
+                            return (newStart < eEnd && newEnd > eStart);
+                        });
+                        if (overlapEvent) {
+                            showConfirm(`イベント「${overlapEvent.title}」と時間が重なっていますが、登録しますか？`, () => {
+                                if (modalMode === 'add') updateProfile({ records: [...activeProfile.records, { ...record, id: generateId() }] }); 
+                                else {
+                                    const others = activeProfile.records.filter(r => r.id !== editingRecord.id);
+                                    updateProfile({ records: [...others, record] });
+                                }
+                                setIsModalOpen(false);
+                            });
+                            return;
+                        }
+                    }
+                    if (modalMode === 'add') updateProfile({ records: [...activeProfile.records, { ...record, id: generateId() }] }); 
+                    else {
+                        const others = activeProfile.records.filter(r => r.id !== editingRecord.id);
+                        updateProfile({ records: [...others, record] });
+                    }
+                    setIsModalOpen(false);
+                } else {
+                    if (!formData.eventTitle) { showAlert("イベント名を入力してください"); return; }
+                     const event = { title: formData.eventTitle, start: startStr, end: endStr };
+                    const overlapRecord = activeProfile.records.find(r => {
+                        const rStart = new Date(r.start);
+                        const rEnd = new Date(r.end);
+                        return (newStart < rEnd && newEnd > rStart);
+                    });
+                    if (overlapRecord) {
+                        const oStart = new Date(overlapRecord.start);
+                        const oEnd = new Date(overlapRecord.end);
+                        const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${String(oStart.getHours()).padStart(2, '0')}:${String(oStart.getMinutes()).padStart(2, '0')} - ${String(oEnd.getHours()).padStart(2, '0')}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
+                        showConfirm(`バイトの予定と時間が重複しています。\n重複: ${timeStr}\n\nそれでも登録しますか？`, () => {
+                            if (modalMode === 'add') updateProfile({ events: [...activeProfile.events, { ...event, id: generateId() }] }); 
+                            else {
+                                const others = activeProfile.events.filter(e => e.id !== editingRecord.id);
+                                updateProfile({ events: [...others, event] });
+                            }
+                            setIsModalOpen(false);
+                        });
+                        return;
+                    }
+                    if (modalMode === 'add') updateProfile({ events: [...activeProfile.events, { ...event, id: generateId() }] }); 
+                    else {
+                        const others = activeProfile.events.filter(e => e.id !== editingRecord.id);
+                        updateProfile({ events: [...others, event] });
+                    }
+                    setIsModalOpen(false);
+                }
+            };
+            
+            const handleDelete = (item, type) => {
+                showConfirm(`この${type === 'shift' ? '記録' : 'イベント'}を削除しますか？`, () => {
+                    if (type === 'shift') updateProfile({ records: activeProfile.records.filter(r => r.id !== item.id) }); 
+                    else updateProfile({ events: activeProfile.events.filter(e => e.id !== item.id) });
+                });
+            };
+            
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    handleSave();
+                }
+            };
+            
+            const combinedList = useMemo(() => {
+                const records = activeProfile.records.map(r => ({ ...r, itemType: 'shift' }));
+                const events = activeProfile.events.map(e => ({ ...e, itemType: 'event' }));
+                return [...records, ...events]
+                    .filter(item => new Date(item.start).getMonth() === currentDate.getMonth())
+                    .sort((a, b) => new Date(a.start) - new Date(b.start));
+            }, [activeProfile, currentDate]);
+
+            const handleCsvImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const text = evt.target.result;
+                    const lines = text.split('\n');
+                    const newRecords = [...activeProfile.records];
+                    let count = 0;
+                    lines.slice(1).forEach(line => {
+                        const cols = line.split(',');
+                        if (cols.length < 6) return;
+                        const [date, startT, endT, jobName, type, brk] = cols.map(s => s.trim());
+                        const job = activeProfile.jobs.find(j => j.name === jobName);
+                        if (!job) return;
+                        const startStr = `${date}T${startT}:00`;
+                        let endStr = `${date}T${endT}:00`;
+                         if (new Date(endStr) <= new Date(startStr)) {
+                             const d = new Date(date); d.setDate(d.getDate() + 1);
+                             endStr = `${formatDate(d)}T${endT}:00`;
+                         }
+                         const rec = { id: generateId(), jobId: job.id, type: type === 'planned' ? 'planned' : 'actual', start: startStr, end: endStr, breakMinutes: parseInt(brk) || 0 };
+                         newRecords.push(rec);
+                         count++;
+                    });
+                    showAlert(`${count}件インポートしました`);
+                    updateProfile({ records: newRecords });
+                };
+                reader.readAsText(file);
+            };
+            
+            const downloadCsvTemplate = () => {
+                 const csv = "Date,StartTime,EndTime,JobName,Type,BreakMinutes\n2024-02-01,09:00,17:00,コンビニ,planned,60";
+                 const blob = new Blob([csv], { type: 'text/csv' });
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a'); a.href = url; a.download = 'import_template.csv'; a.click();
+            };
+
+            return (
+                <div className="pb-20">
+                    <div className="bg-white p-3 rounded-xl shadow-sm mb-4 flex justify-between items-center">
+                        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}><ChevronLeft /></button>
+                        <h2 className="text-lg font-bold">{currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月</h2>
+                        <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}><ChevronRight /></button>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1 mb-2 text-center text-xs text-gray-500 font-bold">
+                        <div className="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div className="text-blue-400">土</div>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
+                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1;
+                            const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                            const dayRecords = activeProfile.records.filter(r => r.start.startsWith(dateStr));
+                            const dayEvents = activeProfile.events.filter(e => e.start.startsWith(dateStr));
+                            const isToday = today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
+
+                            return (
+                                <div 
+                                    key={day} 
+                                    onClick={() => openAddModal(day)}
+                                    className={`min-h-[60px] bg-white rounded-lg border p-1 relative transition cursor-pointer overflow-hidden hover:bg-gray-50 ${isToday ? `border-2 ${theme.border}` : 'border-gray-100'}`}
+                                >
+                                    <div className={`text-xs font-bold ${isToday ? theme.text : 'text-gray-700'}`}>{day}</div>
+                                    <div className="flex flex-col gap-0.5 mt-1">
+                                        {dayRecords.map((r, idx) => {
+                                            const job = activeProfile.jobs.find(j => j.id === r.jobId);
+                                            return <div key={idx} className={`h-1.5 rounded-full w-full ${r.type === 'actual' ? 'opacity-100' : 'opacity-40'}`} style={{ backgroundColor: job?.color || '#ccc' }} />;
+                                        })}
+                                        {dayEvents.map((e, idx) => <div key={`ev-${idx}`} className="h-1.5 w-full bg-pink-400 rounded-full" />)}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="mt-6 space-y-3">
+                        <h3 className="font-bold text-gray-700 ml-2 text-sm">詳細リスト</h3>
+                        {combinedList.map(item => {
+                                if (item.itemType === 'shift') {
+                                    const r = item;
+                                    const job = activeProfile.jobs.find(j => j.id === r.jobId);
+                                    return (
+                                        <div key={r.id} className="bg-white p-3 rounded-lg shadow-sm border-l-4 flex justify-between items-center" style={{ borderLeftColor: job?.color }}>
+                                            <div>
+                                                <div className="text-xs text-gray-500">{new Date(r.start).toLocaleDateString()} {String(new Date(r.start).getHours()).padStart(2,'0')}:{String(new Date(r.start).getMinutes()).padStart(2,'0')} - {String(new Date(r.end).getHours()).padStart(2,'0')}:{String(new Date(r.end).getMinutes()).padStart(2,'0')}</div>
+                                                <div className="font-bold flex items-center gap-2 text-sm">
+                                                    {job?.name}
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${r.type === 'actual' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                        {r.type === 'actual' ? '実績' : '予定'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {r.type === 'planned' && (
+                                                    <button onClick={() => {
+                                                        const others = activeProfile.records.filter(record => record.id !== r.id);
+                                                        
+                                                        // ワンクリックで実績に変更する際にも重複チェックを追加
+                                                        const overlapShift = others.find(otherR => {
+                                                            if (otherR.type !== 'actual') return false;
+                                                            const rStart = new Date(r.start);
+                                                            const rEnd = new Date(r.end);
+                                                            const oStart = new Date(otherR.start);
+                                                            const oEnd = new Date(otherR.end);
+                                                            return (rStart < oEnd && rEnd > oStart);
+                                                        });
+
+                                                        if (overlapShift) {
+                                                            const oStart = new Date(overlapShift.start);
+                                                            const oEnd = new Date(overlapShift.end);
+                                                            const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${String(oStart.getHours()).padStart(2, '0')}:${String(oStart.getMinutes()).padStart(2, '0')} - ${String(oEnd.getHours()).padStart(2, '0')}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
+                                                            showAlert(`実績時間が以下の記録と重複しているため変更できません。\n\n重複対象: ${timeStr}`);
+                                                            return;
+                                                        }
+
+                                                        updateProfile({ records: [...others, { ...r, type: 'actual' }] });
+                                                    }} className="p-2 bg-green-50 text-green-600 rounded-full"><CheckCircle size={16} /></button>
+                                                )}
+                                                <button onClick={() => openEditModal(r, 'shift')} className="p-2 bg-gray-50 text-gray-600 rounded-full"><Edit2 size={16} /></button>
+                                                <button onClick={() => handleDelete(r, 'shift')} className="p-2 bg-red-50 text-red-600 rounded-full"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    );
+                                } else {
+                                    const e = item;
+                                    return (
+                                        <div key={e.id} className="bg-pink-50 p-3 rounded-lg shadow-sm border-l-4 border-pink-400 flex justify-between items-center">
+                                            <div>
+                                                <div className="text-xs text-gray-500">{new Date(e.start).toLocaleDateString()} {String(new Date(e.start).getHours()).padStart(2,'0')}:{String(new Date(e.start).getMinutes()).padStart(2,'0')} - {String(new Date(e.end).getHours()).padStart(2,'0')}:{String(new Date(e.end).getMinutes()).padStart(2,'0')}</div>
+                                                <div className="font-bold flex items-center gap-2 text-gray-800 text-sm"><Gift size={14} className="text-pink-500"/>{e.title}</div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEditModal(e, 'event')} className="p-2 bg-white text-gray-600 rounded-full"><Edit2 size={16} /></button>
+                                                <button onClick={() => handleDelete(e, 'event')} className="p-2 bg-white text-red-600 rounded-full"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                            })}
+                    </div>
+
+                    <div className="mt-8 bg-gray-100 p-4 rounded-xl">
+                        <h4 className="text-sm font-bold text-gray-600 mb-2">CSV一括登録</h4>
+                        <div className="flex gap-2">
+                            <button onClick={downloadCsvTemplate} className="flex-1 bg-white py-2 px-3 rounded shadow text-sm flex items-center justify-center gap-1"><Download size={14} />サンプル</button>
+                            <label className="flex-1 bg-white py-2 px-3 rounded shadow text-sm flex items-center justify-center gap-1 cursor-pointer">
+                                <Upload size={14} />インポート
+                                <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+                            </label>
+                        </div>
+                    </div>
+
+                    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === 'add' ? '新規登録' : '編集'}>
+                        <div className="space-y-4">
+                            {modalMode === 'add' && (
+                                <div className="flex p-1 bg-gray-100 rounded-lg mb-4">
+                                    <button className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${activeTab === 'shift' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`} onClick={() => setActiveTab('shift')}>シフト</button>
+                                    <button className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${activeTab === 'event' ? 'bg-white shadow text-pink-600' : 'text-gray-500'}`} onClick={() => setActiveTab('event')}>イベント</button>
+                                </div>
+                            )}
+                            {activeTab === 'shift' ? (
+                                <>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">バイト先</label>
+                                        <select className="w-full p-2 border rounded-lg bg-gray-50" value={formData.jobId} onChange={(e) => setFormData({...formData, jobId: e.target.value})} onKeyDown={handleKeyDown}>
+                                            {activeProfile.jobs.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-500 mb-1">開始</label>
+                                            <div className="flex gap-1 items-center">
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.startParams.h} onChange={e => setFormData({...formData, startParams: {...formData.startParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
+                                                <span>:</span>
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.startParams.m} onChange={e => setFormData({...formData, startParams: {...formData.startParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-500 mb-1">終了</label>
+                                            <div className="flex gap-1 items-center">
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.endParams.h} onChange={e => setFormData({...formData, endParams: {...formData.endParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
+                                                <span>:</span>
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.endParams.m} onChange={e => setFormData({...formData, endParams: {...formData.endParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">休憩 (分)</label>
+                                        <input type="number" className="w-full p-2 border rounded bg-gray-50" value={formData.breakMinutes} onChange={e => setFormData({...formData, breakMinutes: e.target.value})} onKeyDown={handleKeyDown} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">区分</label>
+                                        <div className="flex gap-2">
+                                            <button className={`flex-1 py-2 rounded text-sm ${formData.type === 'planned' ? 'bg-blue-100 text-blue-600 font-bold' : 'bg-gray-100'}`} onClick={() => setFormData({...formData, type: 'planned'})}>予定</button>
+                                            <button className={`flex-1 py-2 rounded text-sm ${formData.type === 'actual' ? 'bg-green-100 text-green-600 font-bold' : 'bg-gray-100'}`} onClick={() => setFormData({...formData, type: 'actual'})}>実績</button>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">イベント名</label>
+                                        <input type="text" className="w-full p-2 border rounded" placeholder="例: 旅行" value={formData.eventTitle} onChange={e => setFormData({...formData, eventTitle: e.target.value})} onKeyDown={handleKeyDown} />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-500 mb-1">開始</label>
+                                            <div className="flex gap-1 items-center">
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.startParams.h} onChange={e => setFormData({...formData, startParams: {...formData.startParams, h: e.target.value}})} />
+                                                <span>:</span>
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.startParams.m} onChange={e => setFormData({...formData, startParams: {...formData.startParams, m: e.target.value}})} />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-500 mb-1">終了</label>
+                                            <div className="flex gap-1 items-center">
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.endParams.h} onChange={e => setFormData({...formData, endParams: {...formData.endParams, h: e.target.value}})} />
+                                                <span>:</span>
+                                                <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.endParams.m} onChange={e => setFormData({...formData, endParams: {...formData.endParams, m: e.target.value}})} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                            <button onClick={handleSave} className={`w-full py-3 text-white font-bold rounded-xl mt-4 ${theme.bg}`}>保存</button>
+                        </div>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const SettingsScreen = ({ 
+            profiles, activeProfile, setProfiles, setActiveProfileId, 
+            settings, setSettings, updateProfile, showAlert, showConfirm, theme 
+        }) => {
+            const [newJobName, setNewJobName] = useState('');
+            const [newWage, setNewWage] = useState(1000);
+            const [editingName, setEditingName] = useState(activeProfile.name);
+            const [editingTaxLimit, setEditingTaxLimit] = useState(activeProfile.taxLimit);
+            const [jobToEdit, setJobToEdit] = useState(null);
+            const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
+            const [editingJobData, setEditingJobData] = useState({ name: '', wage: 0, payDay: 0, color: '', weekendBonus: { sat: 0, sun: 0 }, timeBonus: {} });
+            const [showTimeBonus, setShowTimeBonus] = useState(false);
+
+            useEffect(() => {
+                setEditingName(activeProfile.name);
+                setEditingTaxLimit(activeProfile.taxLimit);
+            }, [activeProfile.id, activeProfile.name, activeProfile.taxLimit]);
+            
+            const handleAddJob = () => {
+                if (!newJobName) return;
+                const newJob = {
+                    id: generateId(),
+                    name: newJobName,
+                    color: '#' + Math.floor(Math.random()*16777215).toString(16),
+                    wageHistory: [{ date: '2020-01-01', wage: newWage }],
+                    payDay: 25, weekendBonus: { sat: 0, sun: 0 }, timeBonus: {}, dateBonus: {}
+                };
+                updateProfile({ jobs: [...activeProfile.jobs, newJob] });
+                setNewJobName('');
+                showAlert("バイト先を追加しました。\n詳細設定はリストの歯車アイコンから行ってください。");
+            };
+
+            const openJobEdit = (job) => {
+                const sortedHistory = [...(job.wageHistory || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const currentWage = sortedHistory.length > 0 ? sortedHistory[0].wage : 0;
+                setJobToEdit(job);
+                setEditingJobData({ name: job.name, wage: currentWage, payDay: job.payDay, color: job.color, weekendBonus: { sat: job.weekendBonus?.sat || 0, sun: job.weekendBonus?.sun || 0 }, timeBonus: job.timeBonus || {} });
+                setShowTimeBonus(false);
+                setIsJobEditModalOpen(true);
+            };
+
+            const saveJobEdit = () => {
+                if (!jobToEdit) return;
+                const updatedJobs = activeProfile.jobs.map(j => {
+                    if (j.id === jobToEdit.id) {
+                        let newHistory = [...(j.wageHistory || [])];
+                        if (newHistory.length === 0) newHistory = [{ date: formatDate(new Date()), wage: editingJobData.wage }];
+                        else { newHistory.sort((a, b) => new Date(b.date) - new Date(a.date)); newHistory[0] = { ...newHistory[0], wage: editingJobData.wage }; }
+                        return { ...j, name: editingJobData.name, color: editingJobData.color, payDay: editingJobData.payDay, wageHistory: newHistory, weekendBonus: editingJobData.weekendBonus, timeBonus: editingJobData.timeBonus };
+                    }
+                    return j;
+                });
+                updateProfile({ jobs: updatedJobs });
+                setIsJobEditModalOpen(false);
+            };
+
+            const deleteJob = () => {
+                if (!jobToEdit) return;
+                showConfirm(`「${jobToEdit.name}」を削除しますか？`, () => {
+                    const updatedJobs = activeProfile.jobs.filter(j => j.id !== jobToEdit.id);
+                    updateProfile({ jobs: updatedJobs });
+                    setIsJobEditModalOpen(false);
+                });
+            };
+            
+            const handleJobEditKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                    saveJobEdit();
+                }
+            };
+            const handleTimeBonusChange = (hour, amount) => setEditingJobData(prev => ({ ...prev, timeBonus: { ...prev.timeBonus, [hour]: parseInt(amount) || 0 } }));
+            const exportData = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profiles, activeProfileId, settings }));
+                const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "baitocalc_backup.json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
+            };
+
+            return (
+                <div className="pb-20 space-y-6">
+                    <div className="bg-white p-4 rounded-xl shadow-sm">
+                        <h3 className="font-bold border-b pb-2 mb-4 text-sm">アプリケーション設定</h3>
+                        <Toggle label="テストモード (日付操作)" checked={settings.testMode} onChange={(val) => setSettings({ ...settings, testMode: val, testDate: val ? formatDate(new Date()) : null })} />
+                        {settings.testMode && <div className="mb-4"><label className="text-xs text-gray-500">日付</label><input type="date" className="w-full p-2 border rounded" value={settings.testDate || ''} onChange={(e) => setSettings({ ...settings, testDate: e.target.value })} /></div>}
+                        <div className="flex gap-2 mt-4"><button onClick={exportData} className="flex-1 bg-gray-100 py-2 rounded text-xs flex items-center justify-center gap-1"><Download size={14}/> バックアップ</button><label className="flex-1 bg-gray-100 py-2 rounded text-xs flex items-center justify-center gap-1 cursor-pointer"><Upload size={14}/> 復元<input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { const d = JSON.parse(evt.target.result); setProfiles(d.profiles); setActiveProfileId(d.activeProfileId); setSettings(d.settings); alert("データを復元しました"); }; r.readAsText(file); }}/></label></div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl shadow-sm">
+                        <h3 className="font-bold border-b pb-2 mb-4 text-sm">プロファイル設定</h3>
+                        <div className="mb-4">
+                            <label className="text-xs text-gray-500">ユーザー名</label>
+                            <div className="flex gap-2 items-center">
+                                <input 
+                                    type="text" 
+                                    className="flex-1 p-2 border rounded mt-1 bg-gray-50 focus:bg-white transition-colors" 
+                                    value={editingName} 
+                                    onChange={(e) => setEditingName(e.target.value)} 
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.nativeEvent.isComposing) updateProfile({ name: editingName });
+                                    }} 
+                                    onBlur={() => setEditingName(activeProfile.name)} 
+                                />
+                                {profiles.length > 1 && <button onClick={() => showConfirm('現在のプロファイルを削除しますか？', () => { const newProfiles = profiles.filter(p => p.id !== activeProfile.id); setProfiles(newProfiles); setActiveProfileId(newProfiles[0].id); })} className="p-2 mt-1 bg-red-50 text-red-500 rounded hover:bg-red-100"><Trash2 size={18} /></button>}
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className="text-xs text-gray-500">テーマカラー</label>
+                            <div className="flex gap-2 mt-2">
+                                {Object.keys(THEMES).map(color => (
+                                    <button 
+                                        key={color} 
+                                        onClick={() => updateProfile({ theme: color })}
+                                        style={{ backgroundColor: THEME_HEX[color] }}
+                                        className={`w-8 h-8 rounded-full transition-transform ${activeProfile.theme === color ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'}`}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <label className="text-xs text-gray-500">控除限度額 (円)</label>
+                            <input 
+                                type="number" 
+                                className="w-full p-2 border rounded mt-1 bg-gray-50 focus:bg-white transition-colors" 
+                                value={editingTaxLimit} 
+                                onChange={(e) => setEditingTaxLimit(e.target.value)} 
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) updateProfile({ taxLimit: parseInt(editingTaxLimit) });
+                                }} 
+                                onBlur={() => setEditingTaxLimit(activeProfile.taxLimit)} 
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl shadow-sm">
+                        <h3 className="font-bold border-b pb-2 mb-4 text-sm">バイト先管理</h3>
+                        {activeProfile.jobs.map(job => (
+                            <div key={job.id} className="flex justify-between items-center py-2 border-b last:border-0"><div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full" style={{ backgroundColor: job.color }}></div><span>{job.name}</span></div><button onClick={() => openJobEdit(job)} className="text-gray-400 hover:text-gray-600 p-2"><Settings size={18} /></button></div>
+                        ))}
+                        {activeProfile.jobs.length < 5 && (
+                            <div className="mt-4">
+                                <div className="flex gap-2">
+                                    <input 
+                                        className="flex-1 p-2 border rounded text-sm" 
+                                        placeholder="バイト先名" 
+                                        value={newJobName} 
+                                        onChange={e => setNewJobName(e.target.value)} 
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddJob();
+                                        }} 
+                                    />
+                                    <input 
+                                        type="number" 
+                                        className="w-20 p-2 border rounded text-sm" 
+                                        placeholder="時給" 
+                                        value={newWage} 
+                                        onChange={e => setNewWage(e.target.value)} 
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddJob();
+                                        }} 
+                                    />
+                                    <button onClick={handleAddJob} className={`px-4 rounded ${theme.bg} text-white`}><Plus size={16} /></button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <Modal isOpen={isJobEditModalOpen} onClose={() => setIsJobEditModalOpen(false)} title="バイト先編集">
+                        <div className="space-y-4">
+                            <div><label className="block text-xs text-gray-500 mb-1">名称</label><input type="text" className="w-full p-2 border rounded" value={editingJobData.name} onChange={(e) => setEditingJobData({...editingJobData, name: e.target.value})} onKeyDown={handleJobEditKeyDown} /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">時給 (円)</label><input type="number" className="w-full p-2 border rounded" value={editingJobData.wage} onChange={(e) => setEditingJobData({...editingJobData, wage: e.target.value})} onKeyDown={handleJobEditKeyDown} /></div>
+                            <div className="p-3 bg-gray-50 rounded-lg border border-gray-100"><div className="text-xs font-bold text-gray-700 mb-2">曜日別加算</div><div className="flex gap-2"><div className="flex-1"><label className="block text-[10px] text-blue-500 font-bold mb-1">土曜日</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="+0" value={editingJobData.weekendBonus.sat} onChange={(e) => setEditingJobData({...editingJobData, weekendBonus: {...editingJobData.weekendBonus, sat: parseInt(e.target.value) || 0}})} /></div><div className="flex-1"><label className="block text-[10px] text-red-500 font-bold mb-1">日曜日</label><input type="number" className="w-full p-2 border rounded text-sm" placeholder="+0" value={editingJobData.weekendBonus.sun} onChange={(e) => setEditingJobData({...editingJobData, weekendBonus: {...editingJobData.weekendBonus, sun: parseInt(e.target.value) || 0}})} /></div></div></div>
+                            <div className="p-3 bg-gray-50 rounded-lg border border-gray-100"><div className="flex justify-between items-center cursor-pointer" onClick={() => setShowTimeBonus(!showTimeBonus)}><div className="text-xs font-bold text-gray-700">時間帯別加算</div><div className="text-[10px] text-blue-600">{showTimeBonus ? '閉じる' : '詳細設定'}</div></div>{showTimeBonus && (<div className="mt-3 grid grid-cols-4 gap-2">{Array.from({ length: 24 }).map((_, i) => (<div key={i} className="flex flex-col"><label className="text-[10px] text-gray-500 text-center">{i}:00~</label><input type="number" className={`p-1 border rounded text-xs text-center ${editingJobData.timeBonus[i] > 0 ? 'bg-yellow-50 border-yellow-300 font-bold' : ''}`} placeholder="0" value={editingJobData.timeBonus[i] || ''} onChange={(e) => handleTimeBonusChange(i, e.target.value)} /></div>))}</div>)}</div>
+                            <div><label className="block text-xs text-gray-500 mb-1">給料日</label><div className="flex items-center gap-2"><input type="number" className="w-20 p-2 border rounded" min="1" max="31" value={editingJobData.payDay} onChange={(e) => setEditingJobData({...editingJobData, payDay: e.target.value})} /><span className="text-xs">日</span></div></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">カラー</label><input type="color" className="w-12 h-8 p-0 border rounded cursor-pointer" value={editingJobData.color} onChange={(e) => setEditingJobData({...editingJobData, color: e.target.value})} /></div>
+                            <div className="pt-4 flex flex-col gap-2"><button onClick={saveJobEdit} className={`w-full py-3 text-white font-bold rounded-xl ${theme.bg}`}>保存</button><button onClick={deleteJob} className="w-full py-2 text-red-500 font-bold rounded-xl border border-transparent hover:bg-red-50 transition-colors">削除</button></div>
+                        </div>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const Reports = ({ activeProfile, today, theme, updateProfile, showAlert, showConfirm }) => {
+             const currentYear = today.getFullYear();
+             const annualIncome = calculateAnnualIncome(activeProfile, currentYear);
+             const [isAdjModalOpen, setIsAdjModalOpen] = useState(false);
+             const [adjFormData, setAdjFormData] = useState({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: 0, note: '' });
+
+             const handleOpenAdjModal = (adj = null) => {
+                 if (adj) setAdjFormData(adj); else setAdjFormData({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: '', note: '' });
+                 setIsAdjModalOpen(true);
+             };
+             
+             const handleSaveAdj = () => {
+                 if (!adjFormData.amount && adjFormData.amount !== 0) { showAlert("金額を入力してください"); return; }
+                 const newAdj = { ...adjFormData, amount: parseInt(adjFormData.amount) };
+                 if (adjFormData.id) { const others = activeProfile.adjustments.filter(a => a.id !== adjFormData.id); updateProfile({ adjustments: [...others, newAdj] }); } 
+                 else { updateProfile({ adjustments: [...activeProfile.adjustments, { ...newAdj, id: generateId() }] }); }
+                 setIsAdjModalOpen(false);
+             };
+             
+             const handleDeleteAdj = (id) => showConfirm("削除しますか？", () => updateProfile({ adjustments: activeProfile.adjustments.filter(a => a.id !== id) }));
+             
+             const downloadReportCsv = () => {
+                 const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                 let csvContent = "日付,バイト先,開始時間,終了時間,休憩(分),区分,概算給与\n";
+                 const yearRecords = activeProfile.records.filter(r => new Date(r.start).getFullYear() === currentYear);
+                 yearRecords.sort((a, b) => new Date(a.start) - new Date(b.start));
+                 yearRecords.forEach(r => {
+                     const job = activeProfile.jobs.find(j => j.id === r.jobId);
+                     if (!job) return;
+                     const d = new Date(r.start);
+                     csvContent += `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()},${job.name},${new Date(r.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})},${new Date(r.end).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})},${r.breakMinutes},${r.type === 'actual' ? '実績' : '予定'},${calculateShiftSalary(r, job)}\n`;
+                 });
+                 const yearAdjustments = activeProfile.adjustments.filter(a => a.month.startsWith(`${currentYear}-`));
+                 if (yearAdjustments.length > 0) {
+                     csvContent += "\n--- 手当・ボーナス・調整 ---\n対象月,内容,金額\n";
+                     yearAdjustments.forEach(adj => csvContent += `${adj.month},${adj.note},${adj.amount}\n`);
+                 }
+                 const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+                 const url = URL.createObjectURL(blob);
+                 const link = document.createElement("a"); link.setAttribute("href", url); link.setAttribute("download", `baitocalc_report_${currentYear}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+             };
+
+             const currentYearAdjustments = (activeProfile.adjustments || []).filter(a => a.month.startsWith(`${currentYear}-`)).sort((a, b) => a.month.localeCompare(b.month));
+             const chartData = useMemo(() => {
+                 const data = []; let maxVal = 1;
+                 for (let i = 0; i < 12; i++) { const r = calculateMonthlyReport(activeProfile, currentYear, i); if (r.total > maxVal) maxVal = r.total; data.push(r); }
+                 maxVal = Math.max(maxVal, 50000); 
+                 return { data, maxVal };
+             }, [activeProfile, currentYear]);
+             
+             return (
+                 <div className="pb-20 space-y-4">
+                     <div className="bg-white p-4 rounded-xl shadow-sm">
+                         <h3 className="font-bold text-gray-700 mb-4 text-sm">{currentYear}年 年収サマリー</h3>
+                         <div className="text-center py-6"><div className="text-xs text-gray-500">年間累計 (実績+予定)</div><div className={`text-4xl font-bold ${theme.text} mt-2`}>{formatCurrency(annualIncome)}</div></div>
+                         <div className="border-t pt-4">
+                            <div className="text-xs text-gray-500 mb-2">月別推移</div>
+                            <div className="h-40 flex items-end justify-between gap-1 bg-gray-50 rounded-lg p-2 border border-gray-100 relative mb-4">
+                                {chartData.data.map((r, i) => {
+                                    const percentage = (r.total / chartData.maxVal) * 100;
+                                    return (<div key={i} className="w-full h-full flex flex-col justify-end group relative"><div className={`w-full rounded-t ${theme.bg} opacity-80 transition-all duration-500`} style={{ height: `${percentage}%` }}></div><div className="text-[10px] text-center text-gray-500 mt-1 absolute -bottom-5 w-full">{i+1}</div><div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] p-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none mb-1 shadow-lg">{formatCurrency(r.total)}</div></div>);
+                                })}
+                            </div>
+                         </div>
+                     </div>
+
+                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <div className="flex justify-between items-center mb-3"><h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider flex items-center gap-2"><DollarSign size={14} />手当・ボーナス・調整</h3><button onClick={() => handleOpenAdjModal()} className={`text-xs font-bold flex items-center gap-1 hover:bg-gray-50 p-2 rounded transition-colors ${theme.text}`}><Plus size={14} /> 追加</button></div>
+                        {currentYearAdjustments.length === 0 ? <div className="text-center text-gray-400 text-xs py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">登録された手当はありません</div> : (
+                            <div className="space-y-2">{currentYearAdjustments.map(adj => (<div key={adj.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 shadow-sm"><div><div className="flex items-center gap-2 mb-1"><span className="font-bold text-gray-700 text-sm">{adj.month.split('-')[1]}月</span>{adj.note && <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{adj.note}</span>}</div></div><div className="flex items-center gap-3"><span className={`font-bold ${adj.amount >= 0 ? 'text-gray-800' : 'text-red-500'}`}>{formatCurrency(adj.amount)}</span><div className="flex gap-1"><button onClick={() => handleOpenAdjModal(adj)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 size={14} /></button><button onClick={() => handleDeleteAdj(adj.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={14} /></button></div></div></div>))}<div className="text-right text-xs text-gray-400 pt-2 border-t border-dashed mt-2">合計: {formatCurrency(currentYearAdjustments.reduce((sum, a) => sum + parseInt(a.amount), 0))}</div></div>
+                        )}
+                    </div>
+
+                     <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100 flex flex-col gap-3">
+                         <div className="flex items-start gap-2"><Info size={16} className="mt-0.5 shrink-0" /><div>CSV出力機能を使って、確定申告や家計簿アプリへの連携に活用してください。</div></div>
+                         <button onClick={downloadReportCsv} className={`self-end ${theme.bg} text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 hover:opacity-90 shadow-sm`}><Download size={14} />{currentYear}年分をダウンロード</button>
+                     </div>
+
+                     <Modal isOpen={isAdjModalOpen} onClose={() => setIsAdjModalOpen(false)} title={adjFormData.id ? "手当・調整を編集" : "手当・調整を追加"}>
+                        <div className="space-y-4">
+                            <div><label className="block text-xs text-gray-500 mb-1">対象月</label><input type="month" className="w-full p-2 border rounded bg-gray-50" value={adjFormData.month} onChange={(e) => setAdjFormData({...adjFormData, month: e.target.value})} /></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">金額 (円)</label><input type="number" className="w-full p-2 border rounded" placeholder="例: 10000" value={adjFormData.amount} onChange={(e) => setAdjFormData({...adjFormData, amount: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSaveAdj()} autoFocus /><p className="text-[10px] text-gray-400 mt-1">※マイナスの値を入力すると控除になります</p></div>
+                            <div><label className="block text-xs text-gray-500 mb-1">名目・備考</label><input type="text" className="w-full p-2 border rounded" placeholder="例: 夏のボーナス、交通費など" value={adjFormData.note} onChange={(e) => setAdjFormData({...adjFormData, note: e.target.value})} onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSaveAdj()} /></div>
+                            <button onClick={handleSaveAdj} className={`w-full py-3 text-white font-bold rounded-xl mt-4 ${theme.bg}`}>保存</button>
+                        </div>
+                    </Modal>
+                 </div>
+             );
+        };
+
+        // --- Main App Component ---
         const App = () => {
-            // Global State - Initialize lazily to avoid empty state flash
             const [profiles, setProfiles] = useState(() => {
                 const savedData = localStorage.getItem('baitoCalc4_data');
                 if (savedData) {
                     try {
                         const parsed = JSON.parse(savedData);
-                        if (parsed.profiles && parsed.profiles.length > 0) {
-                            return parsed.profiles;
-                        }
-                    } catch (e) {
-                        console.error("Failed to parse saved data", e);
-                    }
+                        if (parsed.profiles && parsed.profiles.length > 0) return parsed.profiles;
+                    } catch (e) { console.error(e); }
                 }
                 return [{ ...INITIAL_PROFILE }];
             });
-
             const [activeProfileId, setActiveProfileId] = useState(() => {
                 const savedData = localStorage.getItem('baitoCalc4_data');
                 if (savedData) {
-                    try {
-                        const parsed = JSON.parse(savedData);
-                        return parsed.activeProfileId || 'default';
-                    } catch (e) {
-                         return 'default';
-                    }
+                    try { return JSON.parse(savedData).activeProfileId || 'default'; } catch (e) { return 'default'; }
                 }
                 return 'default';
             });
-
             const [settings, setSettings] = useState(() => {
                 const savedData = localStorage.getItem('baitoCalc4_data');
                 if (savedData) {
-                    try {
-                        const parsed = JSON.parse(savedData);
-                        return parsed.settings || { testMode: false, testDate: null };
-                    } catch(e) {
-                        return { testMode: false, testDate: null };
-                    }
+                    try { return JSON.parse(savedData).settings || { testMode: false, testDate: null }; } catch(e) { return { testMode: false, testDate: null }; }
                 }
                 return { testMode: false, testDate: null };
             });
 
-            const [viewMode, setViewMode] = useState('dashboard'); // dashboard, schedule, report, settings
-            const [showSecret, setShowSecret] = useState(null);
-            
-            // Dialog State
+            const [viewMode, setViewMode] = useState('dashboard');
             const [dialog, setDialog] = useState({ isOpen: false, type: 'info', message: '', onConfirm: () => {}, onCancel: () => {} });
-
-            // User Add Modal State (Moved to App level)
             const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
             const [newUserName, setNewUserName] = useState('');
 
-            const showAlert = (message) => {
-                setDialog({ 
-                    isOpen: true, 
-                    type: 'error', 
-                    message, 
-                    onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false })), 
-                    onCancel: () => setDialog(prev => ({ ...prev, isOpen: false })) 
-                });
-            };
-
-            const showConfirm = (message, onConfirm) => {
-                setDialog({ 
-                    isOpen: true, 
-                    type: 'confirm', 
-                    message, 
-                    onConfirm: () => {
-                        onConfirm();
-                        setDialog(prev => ({ ...prev, isOpen: false }));
-                    },
-                    onCancel: () => setDialog(prev => ({ ...prev, isOpen: false }))
-                });
-            };
-
-            // Persistence
             useEffect(() => {
                 if (profiles.length > 0) {
-                    localStorage.setItem('baitoCalc4_data', JSON.stringify({
-                        profiles,
-                        activeProfileId,
-                        settings
-                    }));
+                    localStorage.setItem('baitoCalc4_data', JSON.stringify({ profiles, activeProfileId, settings }));
                 }
             }, [profiles, activeProfileId, settings]);
 
-            // Derived State with Safe Fallback
-            const activeProfile = useMemo(() => {
-                return profiles.find(p => p.id === activeProfileId) || profiles[0] || INITIAL_PROFILE;
-            }, [profiles, activeProfileId]);
-
+            const activeProfile = useMemo(() => profiles.find(p => p.id === activeProfileId) || profiles[0] || INITIAL_PROFILE, [profiles, activeProfileId]);
             const currentTheme = THEMES[activeProfile?.theme || 'indigo'];
             const today = settings.testMode && settings.testDate ? new Date(settings.testDate) : new Date();
 
-            // Secret Messages Logic
-            useEffect(() => {
-                const m = today.getMonth() + 1;
-                const d = today.getDate();
-                if (m === 1 && d === 29) {
-                    setShowSecret("真深子さん、お誕生日おめでとうございます！素敵な1年になりますように。");
-                } else if (m === 7 && d === 16) {
-                    setShowSecret("理紗子さん、お誕生日おめでとうございます！素晴らしい1年を。");
-                } else {
-                    setShowSecret(null);
-                }
-            }, [settings.testDate, settings.testMode]); // Check when date changes
-
-            // --- Handlers (Pure State Updates) ---
-
-            const updateProfile = (newData) => {
-                setProfiles(prev => prev.map(p => p.id === activeProfile.id ? { ...p, ...newData } : p));
-            };
-
-            // 純粋な追加・更新・削除関数に変更（バリデーションは呼び出し元で行う）
-            const performAddRecord = (record) => {
-                updateProfile({ records: [...activeProfile.records, { ...record, id: generateId() }] });
-            };
-
-            const performUpdateRecord = (record) => {
-                const others = activeProfile.records.filter(r => r.id !== record.id);
-                updateProfile({ records: [...others, record] });
-            };
-
-            const performDeleteRecord = (id) => {
-                updateProfile({ records: activeProfile.records.filter(r => r.id !== id) });
-            };
+            const updateProfile = (newData) => setProfiles(prev => prev.map(p => p.id === activeProfile.id ? { ...p, ...newData } : p));
             
-            const performAddEvent = (event) => {
-                updateProfile({ events: [...activeProfile.events, { ...event, id: generateId() }] });
-            };
+            const showAlert = (message) => setDialog({ isOpen: true, type: 'error', message, onConfirm: () => setDialog(prev => ({ ...prev, isOpen: false })), onCancel: () => setDialog(prev => ({ ...prev, isOpen: false })) });
+            const showConfirm = (message, onConfirm) => setDialog({ isOpen: true, type: 'confirm', message, onConfirm: () => { onConfirm(); setDialog(prev => ({ ...prev, isOpen: false })); }, onCancel: () => setDialog(prev => ({ ...prev, isOpen: false })) });
 
-            const performUpdateEvent = (event) => {
-                const others = activeProfile.events.filter(e => e.id !== event.id);
-                updateProfile({ events: [...others, event] });
-            };
-
-            const performDeleteEvent = (id) => {
-                updateProfile({ events: activeProfile.events.filter(e => e.id !== id) });
-            };
-            
-            // --- Handlers (Logic with Validation) ---
-            
-            const addRecord = (record) => {
-                // ... validation moved to Schedule component for unified dialog handling ...
-                performAddRecord(record);
-            };
-            
-            const addEvent = (event) => {
-                const newStart = new Date(event.start);
-                const newEnd = new Date(event.end);
-                
-                const overlap = activeProfile.records.find(r => {
-                    const rStart = new Date(r.start);
-                    const rEnd = new Date(r.end);
-                    return (newStart < rEnd && newEnd > rStart);
-                });
-
-                if (overlap) {
-                    const oStart = new Date(overlap.start);
-                    const oEnd = new Date(overlap.end);
-                    const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${oStart.getHours()}:${String(oStart.getMinutes()).padStart(2, '0')} - ${oEnd.getHours()}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
-                    showConfirm(`バイトの予定と時間が重複しています。\n重複: ${timeStr}\n\nそれでも登録しますか？`, () => {
-                        performAddEvent(event);
-                    });
-                    return false;
-                }
-                performAddEvent(event);
-                return true; 
-            };
-
-            // User Add Handlers (Moved from SettingsScreen)
-            const openAddUserModal = () => {
-                setNewUserName('');
-                setIsAddUserModalOpen(true);
-            };
-
+            const openAddUserModal = () => { setNewUserName(''); setIsAddUserModalOpen(true); };
             const saveNewUser = () => {
-                if (!newUserName.trim()) {
-                    showAlert("ユーザー名を入力してください");
-                    return;
-                }
+                if (!newUserName.trim()) { showAlert("ユーザー名を入力してください"); return; }
                 const newP = { ...INITIAL_PROFILE, id: generateId(), name: newUserName };
                 setProfiles([...profiles, newP]);
                 setIsAddUserModalOpen(false);
                 showAlert("新しいユーザーを追加しました。");
             };
 
-            // --- Sub-Components (Inline for single file) ---
+            const monthReport = calculateMonthlyReport(activeProfile, today.getFullYear(), today.getMonth());
 
-            const Dashboard = () => {
-                const [message, setMessage] = useState(null);
-
-                // Upcoming Events logic
-                const upcomingEvents = useMemo(() => {
-                    const now = new Date();
-                    return activeProfile.events
-                        .filter(e => new Date(e.end) >= now) // End time hasn't passed
-                        .sort((a, b) => new Date(a.start) - new Date(b.start))
-                        .slice(0, 3); // Top 3
-                }, [activeProfile.events, today]); // Recalc on today change (if minute updates are needed, separate timer is better)
-
-                // Ensure activeProfile and jobs exist before mapping
-                const upcomingPaydays = (activeProfile.jobs || []).map(job => {
-                    if (!job.payDay) return null;
-                    const pd = parseInt(job.payDay);
-                    let targetDate = new Date(today.getFullYear(), today.getMonth(), pd);
-                    // 給料日が過ぎている、または今日の場合は来月にする判定
-                    // 修正: 給料日当日までは「あと0日」と出したいので、単純比較ではなく日付リセット比較を行うべきだが
-                    // ここでは簡易的に「今日より前」なら来月に設定
-                    if (targetDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-                        targetDate = new Date(today.getFullYear(), today.getMonth() + 1, pd);
-                    }
-                    
-                    // 修正: getDaysUntilを使用して日数計算（時刻無視）
-                    const diffDays = getDaysUntil(targetDate, today);
-                    
-                    return { job: job.name, days: diffDays, date: targetDate };
-                }).filter(Boolean).sort((a, b) => a.days - b.days);
-
-                // Notifications
-                useEffect(() => {
-                    if (showSecret) {
-                        setMessage({ text: showSecret, type: 'secret' });
-                        return;
-                    }
-                    
-                    // Payday notification (5 days before)
-                    const nearPayday = upcomingPaydays.find(p => p.days <= 5 && p.days >= 0);
-                    if (nearPayday) {
-                        setMessage({ 
-                            text: `もうすぐ給料日！ (${nearPayday.job}: あと${nearPayday.days}日) 今月もお疲れ様です！`, 
-                            type: 'cheer' 
-                        });
-                        return;
-                    }
-
-                    // Month Start
-                    if (today.getDate() === 1) {
-                        setMessage({ text: "新しい月が始まりました！今月も目標に向けて頑張りましょう。", type: 'info' });
-                        return;
-                    }
-
-                    // Event Today
-                    const todayEvent = (activeProfile.events || []).find(e => {
-                        const eDate = new Date(e.start);
-                        return eDate.getDate() === today.getDate() && eDate.getMonth() === today.getMonth();
-                    });
-                    if (todayEvent) {
-                        setMessage({ text: `今日は「${todayEvent.title}」の日です！楽しんでください。`, type: 'event' });
-                        return;
-                    }
-
-                }, [today, activeProfile]);
-
-                const monthReport = calculateMonthlyReport(activeProfile, today.getFullYear(), today.getMonth());
-
-                return (
-                    <div className="space-y-4 pb-20">
-                        {/* Welcome & Message */}
-                        <div className={`${currentTheme.bg} p-6 rounded-2xl text-white shadow-lg relative overflow-hidden`}>
-                             <div className="absolute top-0 right-0 p-4 opacity-20">
-                                <DollarSign size={100} />
-                            </div>
-                            <h2 className="text-2xl font-bold mb-2">こんにちは、{activeProfile.name}さん</h2>
-                            <p className="opacity-90">{today.toLocaleDateString('ja-JP', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                            
-                            {message && (
-                                <div className="mt-4 bg-white/20 backdrop-blur-sm p-3 rounded-lg border border-white/30 animate-pulse">
-                                    <div className="flex items-center gap-2">
-                                        {message.type === 'secret' ? <Heart className="text-pink-300 fill-current" /> : <Gift />}
-                                        <span className="font-bold">{message.text}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* Upcoming Events Section */}
-                        {upcomingEvents.length > 0 && (
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-gray-500 text-sm font-bold mb-3 uppercase tracking-wider flex items-center gap-2">
-                                    <Gift size={16} />
-                                    今後のイベント
-                                </h3>
-                                <div className="space-y-2">
-                                    {upcomingEvents.map(event => {
-                                        const startDate = new Date(event.start);
-                                        const endDate = new Date(event.end);
-                                        // 修正: getDaysUntilを使用して日数計算（時刻無視）
-                                        const diffDays = getDaysUntil(startDate, today);
-                                        
-                                        return (
-                                            <div key={event.id} className="flex justify-between items-center p-2 bg-pink-50 rounded-lg border border-pink-100">
-                                                <div>
-                                                    <div className="font-bold text-gray-800">{event.title}</div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {startDate.toLocaleDateString()} {startDate.getHours()}:{String(startDate.getMinutes()).padStart(2,'0')} - {endDate.getHours()}:{String(endDate.getMinutes()).padStart(2,'0')}
-                                                    </div>
-                                                </div>
-                                                <div className="text-xs font-bold text-pink-500">
-                                                    {diffDays === 0 ? '今日' : diffDays > 0 ? `あと${diffDays}日` : '終了'}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Payday Countdown */}
-                        {upcomingPaydays.length > 0 && (
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                <h3 className="text-gray-500 text-sm font-bold mb-3 uppercase tracking-wider">次の給料日</h3>
-                                <div className="space-y-4">
-                                    {upcomingPaydays.map((payday, idx) => (
-                                        <div key={idx} className="flex items-center justify-between border-b border-gray-100 last:border-0 pb-3 last:pb-0">
-                                            <div>
-                                                <span className="text-md font-bold text-gray-800">{payday.job}</span>
-                                                <div className="text-xs text-gray-500">{payday.date.toLocaleDateString()}</div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className={`text-2xl font-bold ${currentTheme.text}`}>
-                                                    {payday.days === 0 ? '今日' : `あと${payday.days}日`}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Monthly Summary with Breakdown */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                                <div className="mb-2">
-                                    <div className="text-gray-500 text-xs mb-1">今月の確定実績</div>
-                                    <div className="text-xl font-bold text-gray-800">{formatCurrency(monthReport.confirmed)}</div>
-                                </div>
-                                <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1 overflow-y-auto max-h-[120px]">
-                                    {activeProfile.jobs.map(job => {
-                                        const data = monthReport.jobBreakdown[job.id] || { confirmed: 0 };
-                                        return (
-                                            <div key={job.id} className="flex justify-between items-center text-xs">
-                                                <span className="flex items-center gap-1 overflow-hidden">
-                                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: job.color }}></div>
-                                                    <span className="text-gray-600 truncate">{job.name}</span>
-                                                </span>
-                                                <span className="shrink-0">{formatCurrency(data.confirmed)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                                <div className="mb-2">
-                                    <div className="text-gray-500 text-xs mb-1">見込み合計(予定込)</div>
-                                    <div className={`text-xl font-bold ${currentTheme.text}`}>{formatCurrency(monthReport.total)}</div>
-                                </div>
-                                <div className="mt-auto pt-2 border-t border-gray-100 flex flex-col gap-1 overflow-y-auto max-h-[120px]">
-                                    {activeProfile.jobs.map(job => {
-                                        const data = monthReport.jobBreakdown[job.id] || { confirmed: 0, planned: 0 };
-                                        const total = (data.confirmed || 0) + (data.planned || 0);
-                                        return (
-                                            <div key={job.id} className="flex justify-between items-center text-xs">
-                                                <span className="flex items-center gap-1 overflow-hidden">
-                                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: job.color }}></div>
-                                                    <span className="text-gray-600 truncate">{job.name}</span>
-                                                </span>
-                                                <span className="shrink-0">{formatCurrency(total)}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 103 Man Wall Progress */}
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="font-bold text-gray-700">扶養控除リミット ({formatCurrency(activeProfile.taxLimit / 10000)}万)</h3>
-                                <span className="text-xs text-gray-500">年収シミュレーション</span>
-                            </div>
-                            {(() => {
-                                const annual = calculateAnnualIncome(activeProfile, today.getFullYear());
-                                const percentage = Math.min(100, (annual / activeProfile.taxLimit) * 100);
-                                let colorClass = 'bg-blue-500';
-                                if (percentage > 80) colorClass = 'bg-yellow-500';
-                                if (percentage > 95) colorClass = 'bg-red-500';
-
-                                return (
-                                    <div>
-                                        <div className="w-full bg-gray-200 rounded-full h-4 mb-1">
-                                            <div className={`${colorClass} h-4 rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
-                                        </div>
-                                        <div className="flex justify-between text-xs text-gray-600">
-                                            <span>現在: {formatCurrency(annual)}</span>
-                                            <span>あと: {formatCurrency(activeProfile.taxLimit - annual)}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    </div>
-                );
-            };
-
-            const Schedule = () => {
-                const [currentDate, setCurrentDate] = useState(today);
-                const [selectedDate, setSelectedDate] = useState(null); // For modal
-                const [isModalOpen, setIsModalOpen] = useState(false);
-                const [modalMode, setModalMode] = useState('add'); // add, edit
-                const [editingRecord, setEditingRecord] = useState(null);
-                
-                // Form State
-                const [activeTab, setActiveTab] = useState('shift'); // 'shift' or 'event'
-                const [formData, setFormData] = useState({
-                    // Shift Data
-                    jobId: '', type: 'planned', startParams: { h: '09', m: '00' }, endParams: { h: '17', m: '00' }, breakMinutes: 60,
-                    // Event Data
-                    eventTitle: ''
-                });
-
-                const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
-                const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-
-                const openAddModal = (day) => {
-                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                    setSelectedDate(dateStr);
-                    setEditingRecord(null);
-                    setFormData({ 
-                        ...formData, 
-                        jobId: activeProfile.jobs[0]?.id || '',
-                        eventTitle: '' 
-                    });
-                    setActiveTab('shift');
-                    setModalMode('add');
-                    setIsModalOpen(true);
-                };
-
-                const openEditModal = (item, type) => {
-                    const d = new Date(item.start);
-                    setSelectedDate(formatDate(d));
-                    setEditingRecord(item);
-                    
-                    const start = new Date(item.start);
-                    const end = new Date(item.end);
-                    
-                    if (type === 'shift') {
-                        setFormData({
-                            ...formData,
-                            jobId: item.jobId,
-                            type: item.type,
-                            startParams: { h: String(start.getHours()).padStart(2,'0'), m: String(start.getMinutes()).padStart(2,'0') },
-                            endParams: { h: String(end.getHours()).padStart(2,'0'), m: String(end.getMinutes()).padStart(2,'0') },
-                            breakMinutes: item.breakMinutes
-                        });
-                        setActiveTab('shift');
-                    } else {
-                        setFormData({
-                            ...formData,
-                            eventTitle: item.title,
-                            startParams: { h: String(start.getHours()).padStart(2,'0'), m: String(start.getMinutes()).padStart(2,'0') },
-                            endParams: { h: String(end.getHours()).padStart(2,'0'), m: String(end.getMinutes()).padStart(2,'0') },
-                        });
-                        setActiveTab('event');
-                    }
-                    
-                    setModalMode('edit');
-                    setIsModalOpen(true);
-                };
-
-                const handleSave = () => {
-                    const startStr = `${selectedDate}T${formData.startParams.h}:${formData.startParams.m}:00`;
-                    let endStr = `${selectedDate}T${formData.endParams.h}:${formData.endParams.m}:00`;
-                    
-                    // Handle overnight shift/event
-                    if (new Date(endStr) <= new Date(startStr)) {
-                        const nextDay = new Date(selectedDate);
-                        nextDay.setDate(nextDay.getDate() + 1);
-                        const nextDayStr = formatDate(nextDay);
-                        endStr = `${nextDayStr}T${formData.endParams.h}:${formData.endParams.m}:00`;
-                    }
-
-                    const newStart = new Date(startStr);
-                    const newEnd = new Date(endStr);
-
-                    if (activeTab === 'shift') {
-                        if (!formData.jobId) { showAlert("バイト先を選択してください"); return; }
-                        
-                        const record = {
-                            jobId: formData.jobId,
-                            type: formData.type,
-                            start: startStr,
-                            end: endStr,
-                            breakMinutes: parseInt(formData.breakMinutes)
-                        };
-
-                        // 1. シフト同士の重複チェック (エラー)
-                        const others = modalMode === 'add' ? activeProfile.records : activeProfile.records.filter(r => r.id !== editingRecord.id);
-                        const overlapShift = others.find(r => {
-                            if (r.type !== record.type) return false;
-                            const rStart = new Date(r.start);
-                            const rEnd = new Date(r.end);
-                            return (newStart < rEnd && newEnd > rStart);
-                        });
-
-                        if (overlapShift) {
-                            const oStart = new Date(overlapShift.start);
-                            const oEnd = new Date(overlapShift.end);
-                            const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${oStart.getHours()}:${String(oStart.getMinutes()).padStart(2, '0')} - ${oEnd.getHours()}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
-                            showAlert(`${record.type === 'planned' ? '予定' : '実績'}時間が以下の記録と重複しているため登録できません。\n\n重複対象: ${timeStr}`);
-                            return;
-                        }
-
-                        // 2. イベントとの重複チェック (確認) - 予定の場合のみ
-                        if (record.type === 'planned') {
-                            const overlapEvent = activeProfile.events.find(e => {
-                                const eStart = new Date(e.start);
-                                const eEnd = new Date(e.end);
-                                return (newStart < eEnd && newEnd > eStart);
-                            });
-
-                            if (overlapEvent) {
-                                showConfirm(`イベント「${overlapEvent.title}」と時間が重なっていますが、登録しますか？`, () => {
-                                    if (modalMode === 'add') performAddRecord(record);
-                                    else performUpdateRecord({ ...record, id: editingRecord.id });
-                                    setIsModalOpen(false);
-                                });
-                                return;
-                            }
-                        }
-
-                        // 重複なし、または確認済み
-                        if (modalMode === 'add') performAddRecord(record);
-                        else performUpdateRecord({ ...record, id: editingRecord.id });
-                        setIsModalOpen(false);
-
-                    } else {
-                        // イベント保存フロー
-                        if (!formData.eventTitle) { showAlert("イベント名を入力してください"); return; }
-                         const event = {
-                            title: formData.eventTitle,
-                            start: startStr,
-                            end: endStr
-                        };
-                        
-                        // 1. バイト(予定)との重複チェック (確認)
-                        const overlapRecord = activeProfile.records.find(r => {
-                            const rStart = new Date(r.start);
-                            const rEnd = new Date(r.end);
-                            return (newStart < rEnd && newEnd > rStart);
-                        });
-
-                        if (overlapRecord) {
-                            const oStart = new Date(overlapRecord.start);
-                            const oEnd = new Date(overlapRecord.end);
-                            const timeStr = `${oStart.getMonth() + 1}/${oStart.getDate()} ${oStart.getHours()}:${String(oStart.getMinutes()).padStart(2, '0')} - ${oEnd.getHours()}:${String(oEnd.getMinutes()).padStart(2, '0')}`;
-                            
-                            showConfirm(`バイトの予定と時間が重複しています。\n重複: ${timeStr}\n\nそれでも登録しますか？`, () => {
-                                if (modalMode === 'add') performAddEvent(event);
-                                else performUpdateEvent({ ...event, id: editingRecord.id });
-                                setIsModalOpen(false);
-                            });
-                            return;
-                        }
-
-                        if (modalMode === 'add') performAddEvent(event);
-                        else performUpdateEvent({ ...event, id: editingRecord.id });
-                        setIsModalOpen(false);
-                    }
-                };
-                
-                const handleDelete = (item, type) => {
-                    showConfirm(`この${type === 'shift' ? '記録' : 'イベント'}を削除しますか？`, () => {
-                        if (type === 'shift') performDeleteRecord(item.id);
-                        else performDeleteEvent(item.id);
-                    });
-                };
-                
-                // Helper for handling Enter key in modal
-                const handleKeyDown = (e) => {
-                    if (e.key === 'Enter') {
-                        handleSave();
-                    }
-                };
-                
-                // Combine and sort records and events for list view
-                const combinedList = useMemo(() => {
-                    const records = activeProfile.records.map(r => ({ ...r, itemType: 'shift' }));
-                    const events = activeProfile.events.map(e => ({ ...e, itemType: 'event' }));
-                    return [...records, ...events]
-                        .filter(item => new Date(item.start).getMonth() === currentDate.getMonth())
-                        .sort((a, b) => new Date(a.start) - new Date(b.start));
-                }, [activeProfile, currentDate]);
-
-                const handleCsvImport = (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        const text = evt.target.result;
-                        const lines = text.split('\n');
-                        const newRecords = [...activeProfile.records];
-                        let count = 0;
-                        lines.slice(1).forEach(line => {
-                            const cols = line.split(',');
-                            if (cols.length < 6) return;
-                            const [date, startT, endT, jobName, type, brk] = cols.map(s => s.trim());
-                            
-                            const job = activeProfile.jobs.find(j => j.name === jobName);
-                            if (!job) return;
-
-                            const startStr = `${date}T${startT}:00`;
-                            let endStr = `${date}T${endT}:00`;
-                             if (new Date(endStr) <= new Date(startStr)) {
-                                 const d = new Date(date); d.setDate(d.getDate() + 1);
-                                 endStr = `${formatDate(d)}T${endT}:00`;
-                             }
-
-                             const rec = { id: generateId(), jobId: job.id, type: type === 'planned' ? 'planned' : 'actual', start: startStr, end: endStr, breakMinutes: parseInt(brk) || 0 };
-                             newRecords.push(rec);
-                             count++;
-                        });
-                        showAlert(`${count}件インポートしました（重複チェックは簡易的です。確認してください）`);
-                        updateProfile({ records: newRecords });
-                    };
-                    reader.readAsText(file);
-                };
-                
-                const downloadCsvTemplate = () => {
-                     const csv = "Date,StartTime,EndTime,JobName,Type,BreakMinutes\n2024-02-01,09:00,17:00,コンビニ,planned,60\n2024-02-02,18:00,23:00,居酒屋,actual,0";
-                     const blob = new Blob([csv], { type: 'text/csv' });
-                     const url = URL.createObjectURL(blob);
-                     const a = document.createElement('a');
-                     a.href = url; a.download = 'import_template.csv'; a.click();
-                };
-
-                return (
-                    <div className="pb-20">
-                        {/* Header */}
-                        <div className="flex justify-between items-center mb-4 bg-white p-3 rounded-xl shadow-sm">
-                            <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}><ChevronLeft /></button>
-                            <h2 className="text-lg font-bold">{currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月</h2>
-                            <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}><ChevronRight /></button>
-                        </div>
-
-                        {/* Calendar Grid */}
-                        <div className="grid grid-cols-7 gap-1 mb-2 text-center text-xs text-gray-500 font-bold">
-                            <div className="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div className="text-blue-400">土</div>
-                        </div>
-                        <div className="grid grid-cols-7 gap-1">
-                            {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
-                            {Array.from({ length: daysInMonth }).map((_, i) => {
-                                const day = i + 1;
-                                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                                const dayRecords = activeProfile.records.filter(r => r.start.startsWith(dateStr));
-                                const dayEvents = activeProfile.events.filter(e => e.start.startsWith(dateStr));
-                                const isToday = today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
-
-                                return (
-                                    <div 
-                                        key={day} 
-                                        onClick={() => openAddModal(day)}
-                                        className={`min-h-[60px] bg-white rounded-lg border ${isToday ? 'border-2 ' + currentTheme.border : 'border-gray-100'} p-1 relative hover:bg-gray-50 transition cursor-pointer overflow-hidden`}
-                                    >
-                                        <div className={`text-xs font-bold ${isToday ? currentTheme.text : 'text-gray-700'}`}>{day}</div>
-                                        {/* Dots for records */}
-                                        <div className="flex flex-col gap-0.5 mt-1">
-                                            {dayRecords.map((r, idx) => {
-                                                const job = activeProfile.jobs.find(j => j.id === r.jobId);
-                                                return (
-                                                    <div 
-                                                        key={idx} 
-                                                        className={`h-1.5 rounded-full w-full ${r.type === 'actual' ? 'opacity-100' : 'opacity-40'}`}
-                                                        style={{ backgroundColor: job?.color || '#ccc' }}
-                                                    />
-                                                );
-                                            })}
-                                            {dayEvents.map((e, idx) => <div key={`ev-${idx}`} className="h-1.5 w-full bg-pink-400 rounded-full" />)}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* List View below calendar */}
-                        <div className="mt-6 space-y-3">
-                            <h3 className="font-bold text-gray-700 ml-2">詳細リスト (直近)</h3>
-                            {combinedList.map(item => {
-                                    if (item.itemType === 'shift') {
-                                        const r = item;
-                                        const job = activeProfile.jobs.find(j => j.id === r.jobId);
-                                        return (
-                                            <div key={r.id} className="bg-white p-3 rounded-lg shadow-sm border-l-4 flex justify-between items-center" style={{ borderLeftColor: job?.color }}>
-                                                <div>
-                                                    <div className="text-xs text-gray-500">{new Date(r.start).toLocaleDateString()} {new Date(r.start).getHours()}:{String(new Date(r.start).getMinutes()).padStart(2,'0')} - {new Date(r.end).getHours()}:{String(new Date(r.end).getMinutes()).padStart(2,'0')}</div>
-                                                    <div className="font-bold flex items-center gap-2">
-                                                        {job?.name}
-                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${r.type === 'actual' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                            {r.type === 'actual' ? '実績' : '予定'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    {r.type === 'planned' && (
-                                                        <button 
-                                                            onClick={() => performUpdateRecord({ ...r, type: 'actual' })}
-                                                            className="p-2 bg-green-50 text-green-600 rounded-full"
-                                                            title="実績にする"
-                                                        >
-                                                            <CheckCircle size={16} />
-                                                        </button>
-                                                    )}
-                                                    <button onClick={() => openEditModal(r, 'shift')} className="p-2 bg-gray-50 text-gray-600 rounded-full"><Edit2 size={16} /></button>
-                                                    <button onClick={() => handleDelete(r, 'shift')} className="p-2 bg-red-50 text-red-600 rounded-full"><Trash2 size={16} /></button>
-                                                </div>
-                                            </div>
-                                        );
-                                    } else {
-                                        // Event Item
-                                        const e = item;
-                                        return (
-                                            <div key={e.id} className="bg-pink-50 p-3 rounded-lg shadow-sm border-l-4 border-pink-400 flex justify-between items-center">
-                                                <div>
-                                                    <div className="text-xs text-gray-500">{new Date(e.start).toLocaleDateString()} {new Date(e.start).getHours()}:{String(new Date(e.start).getMinutes()).padStart(2,'0')} - {new Date(e.end).getHours()}:{String(new Date(e.end).getMinutes()).padStart(2,'0')}</div>
-                                                    <div className="font-bold flex items-center gap-2 text-gray-800">
-                                                        <Gift size={14} className="text-pink-500"/>
-                                                        {e.title}
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => openEditModal(e, 'event')} className="p-2 bg-white text-gray-600 rounded-full"><Edit2 size={16} /></button>
-                                                    <button onClick={() => handleDelete(e, 'event')} className="p-2 bg-white text-red-600 rounded-full"><Trash2 size={16} /></button>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-                                })}
-                        </div>
-
-                        {/* CSV Actions */}
-                        <div className="mt-8 bg-gray-100 p-4 rounded-xl">
-                            <h4 className="text-sm font-bold text-gray-600 mb-2">CSV一括登録</h4>
-                            <div className="flex gap-2">
-                                <button onClick={downloadCsvTemplate} className="flex-1 bg-white py-2 px-3 rounded shadow text-sm flex items-center justify-center gap-1"><Download size={14} />サンプル</button>
-                                <label className="flex-1 bg-white py-2 px-3 rounded shadow text-sm flex items-center justify-center gap-1 cursor-pointer">
-                                    <Upload size={14} />インポート
-                                    <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* Edit Modal (Shift / Event) */}
-                        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalMode === 'add' ? '新規登録' : '編集'}>
-                            <div className="space-y-4">
-                                {/* Tab Switcher */}
-                                {modalMode === 'add' && (
-                                    <div className="flex p-1 bg-gray-100 rounded-lg mb-4">
-                                        <button 
-                                            className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${activeTab === 'shift' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
-                                            onClick={() => setActiveTab('shift')}
-                                        >
-                                            シフト
-                                        </button>
-                                        <button 
-                                            className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${activeTab === 'event' ? 'bg-white shadow text-pink-600' : 'text-gray-500'}`}
-                                            onClick={() => setActiveTab('event')}
-                                        >
-                                            イベント
-                                        </button>
-                                    </div>
-                                )}
-                                
-                                {activeTab === 'shift' ? (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm text-gray-600 mb-1">バイト先</label>
-                                            <select 
-                                                className="w-full p-2 border rounded-lg bg-gray-50"
-                                                value={formData.jobId}
-                                                onChange={(e) => setFormData({...formData, jobId: e.target.value})}
-                                                onKeyDown={handleKeyDown}
-                                            >
-                                                {activeProfile.jobs.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1">
-                                                <label className="block text-sm text-gray-600 mb-1">開始</label>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.startParams.h} onChange={e => setFormData({...formData, startParams: {...formData.startParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                    <span className="py-2">:</span>
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.startParams.m} onChange={e => setFormData({...formData, startParams: {...formData.startParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1">
-                                                <label className="block text-sm text-gray-600 mb-1">終了</label>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.endParams.h} onChange={e => setFormData({...formData, endParams: {...formData.endParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                    <span className="py-2">:</span>
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.endParams.m} onChange={e => setFormData({...formData, endParams: {...formData.endParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-600 mb-1">休憩 (分)</label>
-                                            <input type="number" className="w-full p-2 border rounded bg-gray-50" value={formData.breakMinutes} onChange={e => setFormData({...formData, breakMinutes: e.target.value})} onKeyDown={handleKeyDown} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-600 mb-1">区分</label>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    className={`flex-1 py-2 rounded-lg ${formData.type === 'planned' ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'bg-gray-50'}`}
-                                                    onClick={() => setFormData({...formData, type: 'planned'})}
-                                                >予定</button>
-                                                <button 
-                                                    className={`flex-1 py-2 rounded-lg ${formData.type === 'actual' ? 'bg-green-100 text-green-600 border border-green-200' : 'bg-gray-50'}`}
-                                                    onClick={() => setFormData({...formData, type: 'actual'})}
-                                                >実績</button>
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="p-3 bg-pink-50 rounded-lg border border-pink-100 mb-2">
-                                            <div className="flex gap-2 items-center text-pink-600 font-bold mb-2">
-                                                <Gift size={18} />
-                                                イベント登録
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm text-gray-600 mb-1">イベント名</label>
-                                                <input 
-                                                    type="text" 
-                                                    className="w-full p-2 border rounded bg-white" 
-                                                    placeholder="誕生日会、旅行など"
-                                                    value={formData.eventTitle} 
-                                                    onChange={e => setFormData({...formData, eventTitle: e.target.value})} 
-                                                    onKeyDown={handleKeyDown} 
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1">
-                                                <label className="block text-sm text-gray-600 mb-1">開始</label>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.startParams.h} onChange={e => setFormData({...formData, startParams: {...formData.startParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                    <span className="py-2">:</span>
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.startParams.m} onChange={e => setFormData({...formData, startParams: {...formData.startParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1">
-                                                <label className="block text-sm text-gray-600 mb-1">終了</label>
-                                                <div className="flex gap-1">
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="23" value={formData.endParams.h} onChange={e => setFormData({...formData, endParams: {...formData.endParams, h: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                    <span className="py-2">:</span>
-                                                    <input type="number" className="w-full p-2 border rounded" min="0" max="59" value={formData.endParams.m} onChange={e => setFormData({...formData, endParams: {...formData.endParams, m: e.target.value}})} onKeyDown={handleKeyDown} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                                
-                                <button onClick={handleSave} className={`w-full py-3 text-white font-bold rounded-xl mt-4 ${activeTab === 'shift' ? currentTheme.bg : 'bg-pink-500 hover:bg-pink-600'}`}>保存</button>
-                            </div>
-                        </Modal>
-                    </div>
-                );
-            };
-
-            const SettingsScreen = () => {
-                const [newJobName, setNewJobName] = useState('');
-                const [newWage, setNewWage] = useState(1000);
-                
-                // 編集用の一時ステート
-                const [editingName, setEditingName] = useState(activeProfile.name);
-                const [editingTaxLimit, setEditingTaxLimit] = useState(activeProfile.taxLimit);
-
-                // バイト先編集モーダル用ステート
-                const [jobToEdit, setJobToEdit] = useState(null);
-                const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
-                const [editingJobData, setEditingJobData] = useState({ 
-                    name: '', 
-                    wage: 0, 
-                    payDay: 0, 
-                    color: '',
-                    weekendBonus: { sat: 0, sun: 0 },
-                    timeBonus: {} // { 0: 100, 1: 100... }
-                });
-                
-                const [showTimeBonus, setShowTimeBonus] = useState(false); // 時間帯設定の開閉用
-
-                // プロファイル切り替え時に一時ステートを同期
-                useEffect(() => {
-                    setEditingName(activeProfile.name);
-                    setEditingTaxLimit(activeProfile.taxLimit);
-                }, [activeProfile.id, activeProfile.name, activeProfile.taxLimit]);
-                
-                const handleAddJob = () => {
-                    if (!newJobName) return;
-                    const newJob = {
-                        id: generateId(),
-                        name: newJobName,
-                        color: '#' + Math.floor(Math.random()*16777215).toString(16),
-                        wageHistory: [{ date: '2020-01-01', wage: newWage }],
-                        payDay: 25,
-                        weekendBonus: { sat: 0, sun: 0 },
-                        timeBonus: {},
-                        dateBonus: {}
-                    };
-                    updateProfile({ jobs: [...activeProfile.jobs, newJob] });
-                    setNewJobName('');
-                    showAlert("バイト先を追加しました。\n詳細設定（給料日や色など）はリストの歯車アイコンから行ってください。");
-                };
-
-                const openJobEdit = (job) => {
-                    // 最新の時給を取得
-                    const sortedHistory = [...(job.wageHistory || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
-                    const currentWage = sortedHistory.length > 0 ? sortedHistory[0].wage : 0;
-
-                    setJobToEdit(job);
-                    setEditingJobData({
-                        name: job.name,
-                        wage: currentWage,
-                        payDay: job.payDay,
-                        color: job.color,
-                        weekendBonus: { sat: job.weekendBonus?.sat || 0, sun: job.weekendBonus?.sun || 0 },
-                        timeBonus: job.timeBonus || {}
-                    });
-                    setShowTimeBonus(false);
-                    setIsJobEditModalOpen(true);
-                };
-
-                const saveJobEdit = () => {
-                    if (!jobToEdit) return;
-
-                    const updatedJobs = activeProfile.jobs.map(j => {
-                        if (j.id === jobToEdit.id) {
-                            // 時給履歴の更新（簡易的に最新の履歴を上書き、または履歴がない場合は新規作成）
-                            let newHistory = [...(j.wageHistory || [])];
-                            if (newHistory.length === 0) {
-                                newHistory = [{ date: formatDate(new Date()), wage: editingJobData.wage }];
-                            } else {
-                                // 最新の履歴を特定して更新
-                                newHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
-                                newHistory[0] = { ...newHistory[0], wage: editingJobData.wage };
-                            }
-
-                            return {
-                                ...j,
-                                name: editingJobData.name,
-                                color: editingJobData.color,
-                                payDay: editingJobData.payDay,
-                                wageHistory: newHistory,
-                                weekendBonus: editingJobData.weekendBonus,
-                                timeBonus: editingJobData.timeBonus
-                            };
-                        }
-                        return j;
-                    });
-
-                    updateProfile({ jobs: updatedJobs });
-                    setIsJobEditModalOpen(false);
-                };
-
-                const deleteJob = () => {
-                    if (!jobToEdit) return;
-                    showConfirm(`「${jobToEdit.name}」を削除しますか？\nこれに関連するシフト記録は残りますが、給与計算ができなくなる可能性があります。`, () => {
-                        const updatedJobs = activeProfile.jobs.filter(j => j.id !== jobToEdit.id);
-                        updateProfile({ jobs: updatedJobs });
-                        setIsJobEditModalOpen(false);
-                    });
-                };
-                
-                // バイト先編集モーダル内のエンターキーハンドリング
-                const handleJobEditKeyDown = (e) => {
-                    if (e.key === 'Enter') {
-                        saveJobEdit();
-                    }
-                };
-                
-                const handleTimeBonusChange = (hour, amount) => {
-                    setEditingJobData(prev => ({
-                        ...prev,
-                        timeBonus: {
-                            ...prev.timeBonus,
-                            [hour]: parseInt(amount) || 0
-                        }
-                    }));
-                };
-                
-                const exportData = () => {
-                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profiles, activeProfileId, settings }));
-                    const downloadAnchorNode = document.createElement('a');
-                    downloadAnchorNode.setAttribute("href",     dataStr);
-                    downloadAnchorNode.setAttribute("download", "baitocalc_backup.json");
-                    document.body.appendChild(downloadAnchorNode);
-                    downloadAnchorNode.click();
-                    downloadAnchorNode.remove();
-                };
-
-                return (
-                    <div className="pb-20 space-y-6">
-                        <div className="bg-white p-4 rounded-xl shadow-sm">
-                            <h3 className="font-bold border-b pb-2 mb-4">アプリケーション設定</h3>
-                            <Toggle 
-                                label="テストモード (日付操作)" 
-                                checked={settings.testMode} 
-                                onChange={(val) => setSettings({ ...settings, testMode: val, testDate: val ? formatDate(new Date()) : null })} 
-                            />
-                            {settings.testMode && (
-                                <div className="mb-4">
-                                    <label className="text-sm text-gray-500">シミュレーション日付</label>
-                                    <input 
-                                        type="date" 
-                                        className="w-full p-2 border rounded"
-                                        value={settings.testDate || ''}
-                                        onChange={(e) => setSettings({ ...settings, testDate: e.target.value })}
-                                    />
-                                </div>
-                            )}
-                            <div className="flex gap-2 mt-4">
-                                <button onClick={exportData} className="flex-1 bg-gray-100 py-2 rounded text-sm flex items-center justify-center gap-1"><Download size={14}/> バックアップ</button>
-                                <label className="flex-1 bg-gray-100 py-2 rounded text-sm flex items-center justify-center gap-1 cursor-pointer">
-                                    <Upload size={14}/> 復元
-                                    <input type="file" className="hidden" onChange={(e) => {
-                                        const file = e.target.files[0];
-                                        if(!file) return;
-                                        const r = new FileReader();
-                                        r.onload = (evt) => {
-                                            const d = JSON.parse(evt.target.result);
-                                            setProfiles(d.profiles);
-                                            setActiveProfileId(d.activeProfileId);
-                                            setSettings(d.settings);
-                                            alert("データを復元しました");
-                                        };
-                                        r.readAsText(file);
-                                    }}/>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-xl shadow-sm">
-                            <h3 className="font-bold border-b pb-2 mb-4">プロファイル管理</h3>
-                            <div className="flex gap-2 overflow-x-auto pb-2">
-                                {profiles.map(p => (
-                                    <button 
-                                        key={p.id}
-                                        onClick={() => setActiveProfileId(p.id)}
-                                        className={`flex-shrink-0 px-4 py-2 rounded-full border ${activeProfileId === p.id ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'}`}
-                                    >
-                                        {p.name}
-                                    </button>
-                                ))}
-                                {profiles.length < 5 && (
-                                    <button onClick={openAddUserModal} className="flex-shrink-0 w-10 h-10 rounded-full border border-dashed border-gray-400 flex items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors">
-                                        <Plus size={16} />
-                                    </button>
-                                )}
-                            </div>
-                            
-                            <div className="mt-4">
-                                <label className="text-sm text-gray-500">ユーザー名</label>
-                                <div className="flex flex-col gap-1 w-full">
-                                    <div className="flex gap-2 items-center">
-                                        <input 
-                                            type="text" 
-                                            className="flex-1 p-2 border rounded mt-1 bg-gray-50 focus:bg-white transition-colors" 
-                                            value={editingName}
-                                            onChange={(e) => setEditingName(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    if (editingName.trim() !== '') {
-                                                        updateProfile({ name: editingName });
-                                                        e.target.blur();
-                                                    }
-                                                }
-                                            }}
-                                            onBlur={() => setEditingName(activeProfile.name)}
-                                            placeholder="ユーザー名を入力"
-                                        />
-                                        {profiles.length > 1 && (
-                                            <button 
-                                                onClick={() => {
-                                                    showConfirm('現在のプロファイルを削除しますか？\n(この操作は取り消せません)', () => {
-                                                        const newProfiles = profiles.filter(p => p.id !== activeProfile.id);
-                                                        setProfiles(newProfiles);
-                                                        setActiveProfileId(newProfiles[0].id);
-                                                    });
-                                                }}
-                                                className="p-2 mt-1 bg-red-50 text-red-500 rounded hover:bg-red-100"
-                                                title="プロファイルを削除"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <span className="text-xs text-gray-400 text-right pr-1">エンターキーで変更を保存</span>
-                                </div>
-                            </div>
-
-                            <div className="mt-4">
-                                <label className="text-sm text-gray-500">テーマカラー</label>
-                                <div className="flex gap-2 mt-2">
-                                    {Object.keys(THEMES).map(color => (
-                                        <button 
-                                            key={color} 
-                                            onClick={() => updateProfile({ theme: color })}
-                                            style={{ backgroundColor: THEME_HEX[color] }}
-                                            className={`w-8 h-8 rounded-full transition-transform ${activeProfile.theme === color ? 'ring-2 ring-offset-2 ring-gray-400 scale-110' : 'hover:scale-105'}`}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="mt-4">
-                                <label className="text-sm text-gray-500">控除限度額設定 (円)</label>
-                                <input 
-                                    type="number" 
-                                    className="w-full p-2 border rounded mt-1 bg-gray-50 focus:bg-white transition-colors" 
-                                    value={editingTaxLimit}
-                                    onChange={(e) => setEditingTaxLimit(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            const val = parseInt(editingTaxLimit);
-                                            if (!isNaN(val)) {
-                                                updateProfile({ taxLimit: val });
-                                                e.target.blur();
-                                            }
-                                        }
-                                    }}
-                                    onBlur={() => setEditingTaxLimit(activeProfile.taxLimit)}
-                                    placeholder="金額を入力"
-                                />
-                                <div className="text-right"><span className="text-xs text-gray-400 pr-1">エンターキーで変更を保存</span></div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-xl shadow-sm">
-                            <h3 className="font-bold border-b pb-2 mb-4">バイト先管理</h3>
-                            {activeProfile.jobs.map(job => (
-                                <div key={job.id} className="flex justify-between items-center py-2 border-b last:border-0">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: job.color }}></div>
-                                        <span>{job.name}</span>
-                                    </div>
-                                    <button 
-                                        onClick={() => openJobEdit(job)} 
-                                        className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-50 transition-colors"
-                                    >
-                                        <Settings size={18} />
-                                    </button>
-                                </div>
-                            ))}
-                            {activeProfile.jobs.length < 5 && (
-                                <div className="mt-4">
-                                    <div className="flex gap-2">
-                                        <input 
-                                            className="flex-1 p-2 border rounded text-sm" 
-                                            placeholder="バイト先名" 
-                                            value={newJobName}
-                                            onChange={e => setNewJobName(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleAddJob()}
-                                        />
-                                        <input 
-                                            type="number"
-                                            className="w-20 p-2 border rounded text-sm" 
-                                            placeholder="時給" 
-                                            value={newWage}
-                                            onChange={e => setNewWage(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleAddJob()}
-                                        />
-                                        <button onClick={handleAddJob} className={`px-4 rounded ${currentTheme.bg} text-white`}>
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                    <div className="text-right mt-1"><span className="text-xs text-gray-400 pr-1">エンターキーで追加</span></div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Job Edit Modal */}
-                        <Modal isOpen={isJobEditModalOpen} onClose={() => setIsJobEditModalOpen(false)} title="バイト先編集">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">バイト先名</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full p-2 border rounded"
-                                        value={editingJobData.name}
-                                        onChange={(e) => setEditingJobData({...editingJobData, name: e.target.value})}
-                                        onKeyDown={handleJobEditKeyDown}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">現在の時給 (円)</label>
-                                    <input 
-                                        type="number" 
-                                        className="w-full p-2 border rounded"
-                                        value={editingJobData.wage}
-                                        onChange={(e) => setEditingJobData({...editingJobData, wage: e.target.value})}
-                                        onKeyDown={handleJobEditKeyDown}
-                                    />
-                                </div>
-                                
-                                {/* 休日加算設定 */}
-                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                    <div className="text-sm font-bold text-gray-700 mb-2">曜日別加算 (時給+)</div>
-                                    <div className="flex gap-2">
-                                        <div className="flex-1">
-                                            <label className="block text-xs text-gray-500 mb-1 text-blue-500 font-bold">土曜日</label>
-                                            <input 
-                                                type="number" 
-                                                className="w-full p-2 border rounded text-sm"
-                                                placeholder="+0"
-                                                value={editingJobData.weekendBonus.sat}
-                                                onChange={(e) => setEditingJobData({...editingJobData, weekendBonus: {...editingJobData.weekendBonus, sat: parseInt(e.target.value) || 0}})}
-                                                onKeyDown={handleJobEditKeyDown}
-                                            />
-                                        </div>
-                                        <div className="flex-1">
-                                            <label className="block text-xs text-gray-500 mb-1 text-red-500 font-bold">日曜日</label>
-                                            <input 
-                                                type="number" 
-                                                className="w-full p-2 border rounded text-sm"
-                                                placeholder="+0"
-                                                value={editingJobData.weekendBonus.sun}
-                                                onChange={(e) => setEditingJobData({...editingJobData, weekendBonus: {...editingJobData.weekendBonus, sun: parseInt(e.target.value) || 0}})}
-                                                onKeyDown={handleJobEditKeyDown}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 時間帯別加算設定 */}
-                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                    <div 
-                                        className="flex justify-between items-center cursor-pointer"
-                                        onClick={() => setShowTimeBonus(!showTimeBonus)}
-                                    >
-                                        <div className="text-sm font-bold text-gray-700">時間帯別加算 (深夜など)</div>
-                                        <div className="text-xs text-blue-600">{showTimeBonus ? '閉じる' : '詳細設定'}</div>
-                                    </div>
-                                    
-                                    {showTimeBonus && (
-                                        <div className="mt-3 grid grid-cols-4 gap-2">
-                                            {Array.from({ length: 24 }).map((_, i) => (
-                                                <div key={i} className="flex flex-col">
-                                                    <label className="text-[10px] text-gray-500 text-center">{i}:00~</label>
-                                                    <input 
-                                                        type="number"
-                                                        className={`p-1 border rounded text-xs text-center ${editingJobData.timeBonus[i] > 0 ? 'bg-yellow-50 border-yellow-300 font-bold' : ''}`}
-                                                        placeholder="0"
-                                                        value={editingJobData.timeBonus[i] || ''}
-                                                        onChange={(e) => handleTimeBonusChange(i, e.target.value)}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">給料日 (毎月)</label>
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="number" 
-                                            className="w-20 p-2 border rounded"
-                                            min="1" max="31"
-                                            value={editingJobData.payDay}
-                                            onChange={(e) => setEditingJobData({...editingJobData, payDay: e.target.value})}
-                                            onKeyDown={handleJobEditKeyDown}
-                                        />
-                                        <span className="text-sm">日</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">表示カラー</label>
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="color" 
-                                            className="w-12 h-10 p-1 border rounded cursor-pointer"
-                                            value={editingJobData.color}
-                                            onChange={(e) => setEditingJobData({...editingJobData, color: e.target.value})}
-                                        />
-                                        <span className="text-xs text-gray-500">{editingJobData.color}</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="pt-4 flex flex-col gap-3">
-                                    <button onClick={saveJobEdit} className={`w-full py-3 text-white font-bold rounded-xl ${currentTheme.bg}`}>保存</button>
-                                    <button 
-                                        onClick={deleteJob}
-                                        className="w-full py-2 text-red-500 font-bold rounded-xl hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <Trash2 size={16} />
-                                        このバイト先を削除
-                                    </button>
-                                </div>
-                            </div>
-                        </Modal>
-                    </div>
-                );
-            };
-
-            const Reports = () => {
-                 const currentYear = today.getFullYear();
-                 const annualIncome = calculateAnnualIncome(activeProfile, currentYear);
-
-                 // Adjustment Modal State
-                 const [isAdjModalOpen, setIsAdjModalOpen] = useState(false);
-                 const [adjFormData, setAdjFormData] = useState({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: 0, note: '' });
-
-                 const handleOpenAdjModal = (adj = null) => {
-                     if (adj) {
-                         setAdjFormData(adj);
-                     } else {
-                         setAdjFormData({ id: null, month: `${currentYear}-${String(today.getMonth()+1).padStart(2,'0')}`, amount: '', note: '' });
-                     }
-                     setIsAdjModalOpen(true);
-                 };
-
-                 const handleSaveAdj = () => {
-                     if (!adjFormData.amount && adjFormData.amount !== 0) {
-                         showAlert("金額を入力してください");
-                         return;
-                     }
-                     
-                     const newAdj = {
-                         ...adjFormData,
-                         amount: parseInt(adjFormData.amount)
-                     };
-
-                     if (adjFormData.id) {
-                         // Update
-                         const others = activeProfile.adjustments.filter(a => a.id !== adjFormData.id);
-                         updateProfile({ adjustments: [...others, newAdj] });
-                     } else {
-                         // Add
-                         updateProfile({ adjustments: [...activeProfile.adjustments, { ...newAdj, id: generateId() }] });
-                     }
-                     setIsAdjModalOpen(false);
-                 };
-
-                 const handleDeleteAdj = (id) => {
-                     showConfirm("この手当・調整を削除しますか？", () => {
-                         updateProfile({ adjustments: activeProfile.adjustments.filter(a => a.id !== id) });
-                     });
-                 };
-                 
-                 // CSV Download Logic
-                 const downloadReportCsv = () => {
-                     // BOM for Excel (Japanese characters)
-                     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-                     let csvContent = "日付,バイト先,開始時間,終了時間,休憩(分),区分,概算給与\n";
-                     
-                     // Filter records for current year
-                     const yearRecords = activeProfile.records.filter(r => new Date(r.start).getFullYear() === currentYear);
-                     
-                     // Sort by date
-                     yearRecords.sort((a, b) => new Date(a.start) - new Date(b.start));
-
-                     yearRecords.forEach(r => {
-                         const job = activeProfile.jobs.find(j => j.id === r.jobId);
-                         if (!job) return;
-                         
-                         const dateObj = new Date(r.start);
-                         const date = `${dateObj.getFullYear()}/${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
-                         const startTime = new Date(r.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                         const endTime = new Date(r.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                         const type = r.type === 'actual' ? '実績' : '予定';
-                         const salary = calculateShiftSalary(r, job);
-                         
-                         csvContent += `${date},${job.name},${startTime},${endTime},${r.breakMinutes},${type},${salary}\n`;
-                     });
-
-                     // Add Adjustments
-                     const yearAdjustments = activeProfile.adjustments.filter(a => a.month.startsWith(`${currentYear}-`));
-                     if (yearAdjustments.length > 0) {
-                         csvContent += "\n--- 手当・ボーナス・調整 ---\n";
-                         csvContent += "対象月,内容,金額\n";
-                         yearAdjustments.forEach(adj => {
-                             csvContent += `${adj.month},${adj.note},${adj.amount}\n`;
-                         });
-                     }
-                     
-                     // Create Blob and Link
-                     const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
-                     const url = URL.createObjectURL(blob);
-                     const link = document.createElement("a");
-                     link.setAttribute("href", url);
-                     link.setAttribute("download", `baitocalc_report_${currentYear}.csv`);
-                     document.body.appendChild(link);
-                     link.click();
-                     document.body.removeChild(link);
-                 };
-
-                 // Filter adjustments for current year for display
-                 const currentYearAdjustments = (activeProfile.adjustments || [])
-                    .filter(a => a.month.startsWith(`${currentYear}-`))
-                    .sort((a, b) => a.month.localeCompare(b.month));
-
-                 // グラフ用データの計算（最大値を動的に取得）
-                 const chartData = useMemo(() => {
-                     const data = [];
-                     let maxVal = 1; // ゼロ除算回避
-                     for (let i = 0; i < 12; i++) {
-                         const r = calculateMonthlyReport(activeProfile, currentYear, i);
-                         if (r.total > maxVal) maxVal = r.total;
-                         data.push(r);
-                     }
-                     // 最大値が低すぎる場合は最低ラインを設定（例：5万）して、グラフが見えやすくする
-                     maxVal = Math.max(maxVal, 50000); 
-                     return { data, maxVal };
-                 }, [activeProfile, currentYear]);
-                 
-                 return (
-                     <div className="pb-20 space-y-4">
-                         <div className="bg-white p-4 rounded-xl shadow-sm">
-                             <h3 className="font-bold text-gray-700 mb-4">{currentYear}年 年収サマリー</h3>
-                             <div className="text-center py-6">
-                                 <div className="text-sm text-gray-500">年間累計 (実績+予定)</div>
-                                 <div className={`text-4xl font-bold ${currentTheme.text} mt-2`}>
-                                     {formatCurrency(annualIncome)}
-                                 </div>
-                             </div>
-                             <div className="border-t pt-4">
-                                <div className="text-xs text-gray-500 mb-2">月別推移</div>
-                                {/* グラフエリア */}
-                                <div className="h-40 flex items-end justify-between gap-1 bg-gray-50 rounded-lg p-2 border border-gray-100 relative mb-4">
-                                    {chartData.data.map((r, i) => {
-                                        // 高さの計算 (最大値に対する割合)
-                                        const percentage = (r.total / chartData.maxVal) * 100;
-                                        
-                                        return (
-                                            <div key={i} className="w-full h-full flex flex-col justify-end group relative">
-                                                {/* バー本体 */}
-                                                <div 
-                                                    className={`w-full rounded-t ${currentTheme.bg} opacity-80 transition-all duration-500 ease-out`} 
-                                                    style={{ height: `${percentage}%` }}
-                                                ></div>
-                                                
-                                                {/* 月ラベル */}
-                                                <div className="text-[10px] text-center text-gray-500 mt-1 absolute -bottom-5 w-full font-medium">{i+1}</div>
-                                                
-                                                {/* Tooltip (ホバー時に金額表示) */}
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] p-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10 pointer-events-none mb-1 transition-opacity shadow-lg">
-                                                    {formatCurrency(r.total)}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                             </div>
-                         </div>
-
-                         {/* Adjustments Section */}
-                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="text-gray-500 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-                                    <DollarSign size={16} />
-                                    手当・ボーナス・調整
-                                </h3>
-                                <button onClick={() => handleOpenAdjModal()} className={`text-xs font-bold flex items-center gap-1 hover:bg-gray-50 p-2 rounded transition-colors ${currentTheme.text}`}>
-                                    <Plus size={14} /> 追加
-                                </button>
-                            </div>
-                            {currentYearAdjustments.length === 0 ? (
-                                <div className="text-center text-gray-400 text-xs py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                                    登録された手当はありません
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {currentYearAdjustments.map(adj => (
-                                        <div key={adj.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-bold text-gray-700 text-sm">{adj.month.split('-')[1]}月</span>
-                                                    {adj.note && <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{adj.note}</span>}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className={`font-bold ${adj.amount >= 0 ? 'text-gray-800' : 'text-red-500'}`}>{formatCurrency(adj.amount)}</span>
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => handleOpenAdjModal(adj)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 size={14} /></button>
-                                                    <button onClick={() => handleDeleteAdj(adj.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={14} /></button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div className="text-right text-xs text-gray-400 pt-2 border-t border-dashed mt-2">
-                                        合計: {formatCurrency(currentYearAdjustments.reduce((sum, a) => sum + parseInt(a.amount), 0))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                         <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100 flex flex-col gap-3">
-                             <div className="flex items-start gap-2">
-                                 <Info size={16} className="mt-0.5 shrink-0" />
-                                 <div>
-                                     CSV出力機能を使って、確定申告や家計簿アプリへの連携に活用してください。
-                                 </div>
-                             </div>
-                             <button 
-                                onClick={downloadReportCsv} 
-                                className={`self-end ${currentTheme.bg} text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm`}
-                             >
-                                <Download size={14} />
-                                {currentYear}年分をダウンロード
-                             </button>
-                         </div>
-
-                         {/* Adjustment Modal */}
-                         <Modal isOpen={isAdjModalOpen} onClose={() => setIsAdjModalOpen(false)} title={adjFormData.id ? "手当・調整を編集" : "手当・調整を追加"}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">対象月</label>
-                                    <input 
-                                        type="month" 
-                                        className="w-full p-2 border rounded bg-gray-50"
-                                        value={adjFormData.month}
-                                        onChange={(e) => setAdjFormData({...adjFormData, month: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">金額 (円)</label>
-                                    <input 
-                                        type="number" 
-                                        className="w-full p-2 border rounded"
-                                        placeholder="例: 10000"
-                                        value={adjFormData.amount}
-                                        onChange={(e) => setAdjFormData({...adjFormData, amount: e.target.value})}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSaveAdj()}
-                                        autoFocus
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1">※マイナスの値を入力すると控除になります</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm text-gray-600 mb-1">名目・備考</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full p-2 border rounded"
-                                        placeholder="例: 夏のボーナス、交通費など"
-                                        value={adjFormData.note}
-                                        onChange={(e) => setAdjFormData({...adjFormData, note: e.target.value})}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSaveAdj()}
-                                    />
-                                </div>
-                                <button onClick={handleSaveAdj} className={`w-full py-3 text-white font-bold rounded-xl mt-4 ${currentTheme.bg}`}>保存</button>
-                            </div>
-                        </Modal>
-                     </div>
-                 );
-            };
-
-            // --- Main Layout Render ---
             return (
                 <div className={`min-h-screen ${settings.testMode ? 'border-4 border-red-500' : ''}`}>
-                    {/* Top Bar & Tabs Wrapper */}
                     <div className="bg-white shadow-sm sticky top-0 z-30">
-                        {/* Header */}
                         <header className="px-4 py-3 flex justify-between items-center">
                             <div className="flex items-center gap-2">
-                                <div className={`w-8 h-8 rounded-lg ${currentTheme.bg} flex items-center justify-center text-white font-bold shadow-md transition-colors`}>
-                                    B4
-                                </div>
-                                <div className="flex flex-col">
-                                    <h1 className="font-bold text-gray-800 text-sm leading-tight">BaitoCalc-4</h1>
-                                    <span className={`text-xs font-bold ${currentTheme.text}`}>
-                                        {activeProfile.name}
-                                    </span>
-                                </div>
+                                <div className={`w-8 h-8 rounded-lg ${currentTheme.bg} flex items-center justify-center text-white font-bold shadow-md transition-colors`}>B4</div>
+                                <div className="flex flex-col"><h1 className="font-bold text-gray-800 text-sm leading-tight">BaitoCalc-4</h1><span className={`text-xs font-bold ${currentTheme.text}`}>{activeProfile.name}</span></div>
                             </div>
                             <div className="flex items-center gap-2">
                                 {settings.testMode && <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded font-bold">TEST MODE ({formatDate(today)})</span>}
-                                <button onClick={() => setViewMode('settings')} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-                                    <div className={`w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center text-white ${currentTheme.bg} transition-colors`}>
-                                    {/* Avatar Placeholder */}
-                                    <User size={18} />
-                                    </div>
-                                </button>
+                                <button onClick={() => setViewMode('settings')} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><div className={`w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center text-white ${currentTheme.bg} transition-colors`}><User size={18} /></div></button>
                             </div>
                         </header>
-
-                        {/* User Switcher Tabs */}
                         <div className="flex overflow-x-auto border-t border-gray-100">
                             {profiles.map(p => {
                                 const isActive = activeProfileId === p.id;
-                                // タブのアクティブカラーを動的に決定
                                 const activeColor = THEME_HEX[p.theme] || '#6366f1'; 
-                                
                                 return (
-                                    <button 
-                                        key={p.id}
-                                        onClick={() => setActiveProfileId(p.id)}
-                                        className={`flex-1 min-w-[80px] py-2 text-xs font-bold text-center border-b-2 transition-all whitespace-nowrap px-2 relative
-                                            ${isActive ? 'bg-white' : 'bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100'}
-                                        `}
-                                        style={isActive ? { 
-                                            borderColor: activeColor, 
-                                            color: activeColor 
-                                        } : { 
-                                            borderColor: 'transparent' 
-                                        }}
-                                    >
-                                        {p.name}
-                                    </button>
+                                    <button key={p.id} onClick={() => setActiveProfileId(p.id)} className={`flex-1 min-w-[80px] py-2 text-xs font-bold text-center border-b-2 transition-all whitespace-nowrap px-2 relative ${isActive ? 'bg-white' : 'bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} style={isActive ? { borderColor: activeColor, color: activeColor } : { borderColor: 'transparent' }}>{p.name}</button>
                                 );
                             })}
-                            
-                            {/* Quick Add User Button (only if < 5 profiles) */}
-                            {profiles.length < 5 && (
-                                <button 
-                                    onClick={openAddUserModal}
-                                    className="min-w-[40px] flex items-center justify-center text-gray-400 hover:text-gray-600 bg-gray-50 hover:bg-gray-100 border-b-2 border-transparent transition-colors"
-                                    title="ユーザー追加"
-                                >
-                                    <Plus size={14} />
-                                </button>
-                            )}
+                            {profiles.length < 5 && <button onClick={openAddUserModal} className="min-w-[40px] flex items-center justify-center text-gray-400 hover:text-gray-600 bg-gray-50 hover:bg-gray-100 border-b-2 border-transparent transition-colors" title="ユーザー追加"><Plus size={14} /></button>}
                         </div>
                     </div>
 
-                    {/* Content Area */}
                     <main className="p-4 max-w-lg mx-auto min-h-[85vh]">
-                        {viewMode === 'dashboard' && <Dashboard />}
-                        {viewMode === 'schedule' && <Schedule />}
-                        {viewMode === 'reports' && <Reports />}
-                        {viewMode === 'settings' && <SettingsScreen />}
+                        {viewMode === 'dashboard' && <Dashboard activeProfile={activeProfile} today={today} theme={currentTheme} monthReport={monthReport} />}
+                        {viewMode === 'schedule' && <Schedule activeProfile={activeProfile} today={today} theme={currentTheme} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} />}
+                        {viewMode === 'reports' && <Reports activeProfile={activeProfile} today={today} theme={currentTheme} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} />}
+                        {viewMode === 'settings' && <SettingsScreen profiles={profiles} activeProfile={activeProfile} setProfiles={setProfiles} setActiveProfileId={setActiveProfileId} settings={settings} setSettings={setSettings} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} theme={currentTheme} />}
                     </main>
 
-                    {/* Dialog Container */}
-                    <Dialog 
-                        isOpen={dialog.isOpen} 
-                        type={dialog.type} 
-                        message={dialog.message} 
-                        onConfirm={dialog.onConfirm} 
-                        onCancel={dialog.onCancel} 
-                    />
+                    <Dialog isOpen={dialog.isOpen} type={dialog.type} message={dialog.message} onConfirm={dialog.onConfirm} onCancel={dialog.onCancel} />
 
-                    {/* Add User Modal (Hoisted to App level) */}
                     <Modal isOpen={isAddUserModalOpen} onClose={() => setIsAddUserModalOpen(false)} title="新しいユーザーを追加">
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-gray-600 mb-1">ユーザー名</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full p-3 border rounded-lg bg-gray-50 focus:bg-white transition-colors"
-                                    placeholder="例: 花子"
-                                    value={newUserName}
-                                    onChange={(e) => setNewUserName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveNewUser();
-                                    }}
-                                    autoFocus
-                                />
-                            </div>
-                            <button 
-                                onClick={saveNewUser} 
-                                className={`w-full py-3 text-white font-bold rounded-xl mt-2 ${currentTheme.bg} hover:opacity-90 transition-opacity`}
-                            >
-                                追加する
-                            </button>
+                            <div><label className="block text-sm text-gray-600 mb-1">ユーザー名</label><input type="text" className="w-full p-3 border rounded-lg bg-gray-50 focus:bg-white transition-colors" placeholder="例: 花子" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveNewUser(); }} autoFocus /></div>
+                            <button onClick={saveNewUser} className={`w-full py-3 text-white font-bold rounded-xl mt-2 ${currentTheme.bg} hover:opacity-90 transition-opacity`}>追加する</button>
                         </div>
                     </Modal>
 
-                    {/* Bottom Navigation */}
                     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-40">
                         <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
-                            <button onClick={() => setViewMode('dashboard')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'dashboard' ? currentTheme.text : 'text-gray-400'}`}>
-                                <CalendarDays size={20} />
-                                <span className="text-[10px] font-bold">ホーム</span>
-                            </button>
-                            <button onClick={() => setViewMode('schedule')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'schedule' ? currentTheme.text : 'text-gray-400'}`}>
-                                <Calendar size={20} />
-                                <span className="text-[10px] font-bold">予定・実績</span>
-                            </button>
-                            <button onClick={() => setViewMode('reports')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'reports' ? currentTheme.text : 'text-gray-400'}`}>
-                                <Briefcase size={20} />
-                                <span className="text-[10px] font-bold">レポート</span>
-                            </button>
-                            <button onClick={() => setViewMode('settings')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'settings' ? currentTheme.text : 'text-gray-400'}`}>
-                                <Settings size={20} />
-                                <span className="text-[10px] font-bold">設定</span>
-                            </button>
+                            <button onClick={() => setViewMode('dashboard')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'dashboard' ? currentTheme.text : 'text-gray-400'}`}><CalendarDays size={20} /><span className="text-[10px] font-bold">ホーム</span></button>
+                            <button onClick={() => setViewMode('schedule')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'schedule' ? currentTheme.text : 'text-gray-400'}`}><Calendar size={20} /><span className="text-[10px] font-bold">予定・実績</span></button>
+                            <button onClick={() => setViewMode('reports')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'reports' ? currentTheme.text : 'text-gray-400'}`}><Briefcase size={20} /><span className="text-[10px] font-bold">レポート</span></button>
+                            <button onClick={() => setViewMode('settings')} className={`flex flex-col items-center gap-1 w-full h-full justify-center ${viewMode === 'settings' ? currentTheme.text : 'text-gray-400'}`}><Settings size={20} /><span className="text-[10px] font-bold">設定</span></button>
                         </div>
                     </nav>
                 </div>
