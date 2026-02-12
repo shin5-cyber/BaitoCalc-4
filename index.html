@@ -221,6 +221,7 @@
 
             profile.records.forEach(record => {
                 const recDate = new Date(record.start);
+                if (isNaN(recDate)) return; // 不正な日付データを無視して保護
                 if (recDate >= startOfMonth && recDate <= endOfMonth) {
                     const job = profile.jobs.find(j => j.id === record.jobId);
                     if (job) {
@@ -563,12 +564,18 @@
             };
 
             const handleSave = () => {
-                const startStr = `${selectedDate}T${formData.startParams.h}:${formData.startParams.m}:00`;
-                let endStr = `${selectedDate}T${formData.endParams.h}:${formData.endParams.m}:00`;
+                // 時間のゼロ埋めを確実に行い、Invalid Dateを防ぐ
+                const startH = String(formData.startParams.h).padStart(2, '0');
+                const startM = String(formData.startParams.m).padStart(2, '0');
+                const endH = String(formData.endParams.h).padStart(2, '0');
+                const endM = String(formData.endParams.m).padStart(2, '0');
+
+                const startStr = `${selectedDate}T${startH}:${startM}:00`;
+                let endStr = `${selectedDate}T${endH}:${endM}:00`;
                 if (new Date(endStr) <= new Date(startStr)) {
                     const nextDay = new Date(selectedDate);
                     nextDay.setDate(nextDay.getDate() + 1);
-                    endStr = `${formatDate(nextDay)}T${formData.endParams.h}:${formData.endParams.m}:00`;
+                    endStr = `${formatDate(nextDay)}T${endH}:${endM}:00`;
                 }
                 const newStart = new Date(startStr);
                 const newEnd = new Date(endStr);
@@ -577,10 +584,12 @@
                     if (!formData.jobId) { showAlert("バイト先を選択してください"); return; }
                     const record = { jobId: formData.jobId, type: formData.type, start: startStr, end: endStr, breakMinutes: parseInt(formData.breakMinutes) };
                     const others = modalMode === 'add' ? activeProfile.records : activeProfile.records.filter(r => r.id !== editingRecord.id);
+                    
                     const overlapShift = others.find(r => {
                         if (r.type !== record.type) return false;
                         const rStart = new Date(r.start);
                         const rEnd = new Date(r.end);
+                        if (isNaN(rStart) || isNaN(rEnd)) return false;
                         return (newStart < rEnd && newEnd > rStart);
                     });
 
@@ -595,14 +604,15 @@
                         const overlapEvent = activeProfile.events.find(e => {
                             const eStart = new Date(e.start);
                             const eEnd = new Date(e.end);
+                            if (isNaN(eStart) || isNaN(eEnd)) return false;
                             return (newStart < eEnd && newEnd > eStart);
                         });
                         if (overlapEvent) {
                             showConfirm(`イベント「${overlapEvent.title}」と時間が重なっていますが、登録しますか？`, () => {
                                 if (modalMode === 'add') updateProfile({ records: [...activeProfile.records, { ...record, id: generateId() }] }); 
                                 else {
-                                    const others = activeProfile.records.filter(r => r.id !== editingRecord.id);
-                                    updateProfile({ records: [...others, record] });
+                                    // 修正: 既存のIDを確実に付与して上書き保存する
+                                    updateProfile({ records: [...others, { ...record, id: editingRecord.id }] });
                                 }
                                 setIsModalOpen(false);
                             });
@@ -611,16 +621,19 @@
                     }
                     if (modalMode === 'add') updateProfile({ records: [...activeProfile.records, { ...record, id: generateId() }] }); 
                     else {
-                        const others = activeProfile.records.filter(r => r.id !== editingRecord.id);
-                        updateProfile({ records: [...others, record] });
+                        // 修正: 既存のIDを確実に付与して上書き保存する
+                        updateProfile({ records: [...others, { ...record, id: editingRecord.id }] });
                     }
                     setIsModalOpen(false);
                 } else {
                     if (!formData.eventTitle) { showAlert("イベント名を入力してください"); return; }
-                     const event = { title: formData.eventTitle, start: startStr, end: endStr };
+                    const event = { title: formData.eventTitle, start: startStr, end: endStr };
+                    const others = modalMode === 'add' ? activeProfile.events : activeProfile.events.filter(e => e.id !== editingRecord.id);
+
                     const overlapRecord = activeProfile.records.find(r => {
                         const rStart = new Date(r.start);
                         const rEnd = new Date(r.end);
+                        if (isNaN(rStart) || isNaN(rEnd)) return false;
                         return (newStart < rEnd && newEnd > rStart);
                     });
                     if (overlapRecord) {
@@ -630,8 +643,8 @@
                         showConfirm(`バイトの予定と時間が重複しています。\n重複: ${timeStr}\n\nそれでも登録しますか？`, () => {
                             if (modalMode === 'add') updateProfile({ events: [...activeProfile.events, { ...event, id: generateId() }] }); 
                             else {
-                                const others = activeProfile.events.filter(e => e.id !== editingRecord.id);
-                                updateProfile({ events: [...others, event] });
+                                // 修正: 既存のIDを確実に付与して上書き保存する
+                                updateProfile({ events: [...others, { ...event, id: editingRecord.id }] });
                             }
                             setIsModalOpen(false);
                         });
@@ -639,8 +652,8 @@
                     }
                     if (modalMode === 'add') updateProfile({ events: [...activeProfile.events, { ...event, id: generateId() }] }); 
                     else {
-                        const others = activeProfile.events.filter(e => e.id !== editingRecord.id);
-                        updateProfile({ events: [...others, event] });
+                        // 修正: 既存のIDを確実に付与して上書き保存する
+                        updateProfile({ events: [...others, { ...event, id: editingRecord.id }] });
                     }
                     setIsModalOpen(false);
                 }
@@ -660,10 +673,14 @@
             };
             
             const combinedList = useMemo(() => {
-                const records = activeProfile.records.map(r => ({ ...r, itemType: 'shift' }));
-                const events = activeProfile.events.map(e => ({ ...e, itemType: 'event' }));
+                // IDが消失している不正なデータや日付エラーのデータを無視しつつ、年の一致も確認
+                const records = activeProfile.records.filter(r => r.id && r.start && !isNaN(new Date(r.start))).map(r => ({ ...r, itemType: 'shift' }));
+                const events = activeProfile.events.filter(e => e.id && e.start && !isNaN(new Date(e.start))).map(e => ({ ...e, itemType: 'event' }));
                 return [...records, ...events]
-                    .filter(item => new Date(item.start).getMonth() === currentDate.getMonth())
+                    .filter(item => {
+                        const d = new Date(item.start);
+                        return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+                    })
                     .sort((a, b) => new Date(a.start) - new Date(b.start));
             }, [activeProfile, currentDate]);
 
@@ -677,16 +694,29 @@
                     const newRecords = [...activeProfile.records];
                     let count = 0;
                     lines.slice(1).forEach(line => {
+                        if (!line.trim()) return;
                         const cols = line.split(',');
                         if (cols.length < 6) return;
                         const [date, startT, endT, jobName, type, brk] = cols.map(s => s.trim());
                         const job = activeProfile.jobs.find(j => j.name === jobName);
                         if (!job) return;
-                        const startStr = `${date}T${startT}:00`;
-                        let endStr = `${date}T${endT}:00`;
+                        
+                        // CSVの日付形式ブレを吸収する
+                        const d = new Date(date);
+                        if (isNaN(d)) return;
+                        const validDateStr = formatDate(d);
+
+                        const [sH = '0', sM = '0'] = startT.split(':');
+                        const [eH = '0', eM = '0'] = endT.split(':');
+                        const formattedStartT = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
+                        const formattedEndT = `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
+
+                        const startStr = `${validDateStr}T${formattedStartT}:00`;
+                        let endStr = `${validDateStr}T${formattedEndT}:00`;
                          if (new Date(endStr) <= new Date(startStr)) {
-                             const d = new Date(date); d.setDate(d.getDate() + 1);
-                             endStr = `${formatDate(d)}T${endT}:00`;
+                             const nextDay = new Date(d);
+                             nextDay.setDate(nextDay.getDate() + 1);
+                             endStr = `${formatDate(nextDay)}T${formattedEndT}:00`;
                          }
                          const rec = { id: generateId(), jobId: job.id, type: type === 'planned' ? 'planned' : 'actual', start: startStr, end: endStr, breakMinutes: parseInt(brk) || 0 };
                          newRecords.push(rec);
@@ -721,8 +751,8 @@
                         {Array.from({ length: daysInMonth }).map((_, i) => {
                             const day = i + 1;
                             const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                            const dayRecords = activeProfile.records.filter(r => r.start.startsWith(dateStr));
-                            const dayEvents = activeProfile.events.filter(e => e.start.startsWith(dateStr));
+                            const dayRecords = activeProfile.records.filter(r => r.start && r.start.startsWith(dateStr));
+                            const dayEvents = activeProfile.events.filter(e => e.start && e.start.startsWith(dateStr));
                             const isToday = today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
 
                             return (
