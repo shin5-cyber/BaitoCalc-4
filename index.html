@@ -108,6 +108,7 @@
         const IconProps = { strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" };
         
         const Icons = {
+            // ... existing icons ...
             Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
             CalendarDays: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>,
             Calculator: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>,
@@ -128,16 +129,17 @@
             Briefcase: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
             Heart: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
             CheckCircle: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-            Moon: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>,
+            Moon: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><path d="M12 3a6 6 0 0 0 9 9 9 0 1 1-9-9Z"/></svg>,
             Sun: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>,
-            Gift: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><polyline points="20 12 20 22 4 22 4 12"/><rect width="20" height="5" x="2" y="7" rx="1"/><line x1="12" x2="12" y1="22" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            Gift: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><polyline points="20 12 20 22 4 22 4 12"/><rect width="20" height="5" x="2" y="7" rx="1"/><line x1="12" x2="12" y1="22" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+            PiggyBank: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2.5V5z"/><line x1="8" x2="8" y1="13" y2="17"/><path d="M16 11c0-1.5-2.2-2.3-3.5-2"/></svg>
         };
 
         const { 
             Calendar, Calculator, Settings, User, Plus, Trash2, Edit2, 
             ChevronLeft, ChevronRight, Save, Download, Upload, Info, 
             AlertCircle, DollarSign, Clock, Briefcase, Heart, CheckCircle,
-            CalendarDays, Moon, Sun, Gift
+            CalendarDays, Moon, Sun, Gift, PiggyBank
         } = Icons;
 
         // --- Utility Functions ---
@@ -171,11 +173,11 @@
         // --- Theme Definitions ---
 
         const THEMES = {
-            indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50' },
-            emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', border: 'border-emerald-500', light: 'bg-emerald-50' },
-            rose: { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-500', light: 'bg-rose-50' },
-            amber: { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-500', light: 'bg-amber-50' },
-            violet: { bg: 'bg-violet-500', text: 'text-violet-600', border: 'border-violet-500', light: 'bg-violet-50' },
+            indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50', pageBg: 'bg-indigo-50' },
+            emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', border: 'border-emerald-500', light: 'bg-emerald-50', pageBg: 'bg-emerald-50' },
+            rose: { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-500', light: 'bg-rose-50', pageBg: 'bg-rose-50' },
+            amber: { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-500', light: 'bg-amber-50', pageBg: 'bg-amber-50' },
+            violet: { bg: 'bg-violet-500', text: 'text-violet-600', border: 'border-violet-500', light: 'bg-violet-50', pageBg: 'bg-violet-50' },
         };
 
         const THEME_HEX = {
@@ -1302,11 +1304,13 @@
             const monthReport = calculateMonthlyReport(activeProfile, today.getFullYear(), today.getMonth());
 
             return (
-                <div className="min-h-screen pt-safe pb-safe bg-[#fff0f5]">
+                <div className={`min-h-screen pt-safe pb-safe ${currentTheme.pageBg} transition-colors duration-300`}>
                     <div className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-30 pt-safe">
                         <header className="px-5 py-3 flex justify-between items-center">
                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-2xl ${currentTheme.bg} flex items-center justify-center text-white font-bold shadow-md transition-colors text-lg`}>B4</div>
+                                <div className={`w-10 h-10 rounded-2xl ${currentTheme.bg} flex items-center justify-center text-white font-bold shadow-md transition-colors text-lg`}>
+                                    <PiggyBank size={24} />
+                                </div>
                                 <div className="flex flex-col"><h1 className="font-bold text-gray-800 text-sm leading-tight">BaitoCalc-4</h1><span className={`text-xs font-bold ${currentTheme.text}`}>{activeProfile.name}</span></div>
                             </div>
                             <div className="flex items-center gap-3">
