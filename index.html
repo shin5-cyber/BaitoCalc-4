@@ -417,6 +417,7 @@
             );
         };
 
+        // ... Toggle component ...
         const Toggle = ({ label, checked, onChange }) => (
             <div className="flex items-center justify-between mb-4">
                 <span className="text-gray-700 font-bold">{label}</span>
@@ -429,9 +430,9 @@
             </div>
         );
 
-        // --- Screen Components ---
-
+        // ... Screen Components ...
         const Dashboard = ({ activeProfile, today, theme, monthReport }) => {
+            // ... existing Dashboard code ...
             const [message, setMessage] = useState(null);
 
             const upcomingEvents = useMemo(() => {
@@ -620,8 +621,10 @@
             );
         };
 
+        // ... Schedule Component ...
         const Schedule = ({ activeProfile, today, theme, updateProfile, showAlert, showConfirm }) => {
             const [currentDate, setCurrentDate] = useState(today);
+            // ... existing Schedule code ...
             const [selectedDate, setSelectedDate] = useState(null);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [modalMode, setModalMode] = useState('add'); 
@@ -1122,15 +1125,53 @@
             };
             const handleTimeBonusChange = (hour, amount) => setEditingJobData(prev => ({ ...prev, timeBonus: { ...prev.timeBonus, [hour]: parseInt(amount) || 0 } }));
             
-            const exportData = () => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profiles, activeProfileId, settings }));
-                const downloadAnchorNode = document.createElement('a'); 
-                downloadAnchorNode.setAttribute("href", dataStr); 
-                downloadAnchorNode.setAttribute("download", "baitocalc_backup.json"); 
-                document.body.appendChild(downloadAnchorNode); 
-                downloadAnchorNode.click(); 
-                downloadAnchorNode.remove();
-                showAlert("バックアップファイルの保存を開始しました。\nブラウザのダウンロードフォルダを確認してください。");
+            const exportData = async () => {
+                const dataStr = JSON.stringify({ profiles, activeProfileId, settings }, null, 2);
+                const fileName = `baitocalc_backup_${new Date().toISOString().slice(0,10)}.json`;
+
+                // Try Web Share API first (Great for iPad/iPhone)
+                if (navigator.canShare && navigator.share) {
+                    try {
+                        const file = new File([dataStr], fileName, { type: "application/json" });
+                        if (navigator.canShare({ files: [file] })) {
+                            await navigator.share({
+                                files: [file],
+                                title: 'BaitoCalc バックアップ',
+                                text: 'BaitoCalcのバックアップデータです。'
+                            });
+                            return; // Success
+                        }
+                    } catch (err) {
+                        // User cancelled or error, fall through to download
+                        if (err.name !== 'AbortError') {
+                            console.error(err);
+                        } else {
+                            return; // Cancelled
+                        }
+                    }
+                }
+
+                // Fallback: Classic Download
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showAlert(`バックアップファイルを保存しました。\n\n【iPad/iPhoneの方】\n1. Safariのアドレスバー横の下矢印（↓）または「ぁあ」をタップ\n2. 「ダウンロード」を選択\n3. ファイルアプリの「ダウンロード」フォルダに保存されています。`);
+            };
+
+            const copyToClipboard = () => {
+                 const dataStr = JSON.stringify({ profiles, activeProfileId, settings }, null, 2);
+                 navigator.clipboard.writeText(dataStr).then(() => {
+                     showAlert("データをクリップボードにコピーしました。\nメモ帳などに貼り付けて保存してください。");
+                 }).catch(err => {
+                     showAlert("コピーに失敗しました。");
+                 });
             };
 
             return (
@@ -1139,9 +1180,13 @@
                         <h3 className="font-bold border-b border-gray-100 pb-3 mb-4 text-sm text-gray-400">アプリケーション設定</h3>
                         <Toggle label="テストモード (日付操作)" checked={settings.testMode} onChange={(val) => setSettings({ ...settings, testMode: val, testDate: val ? formatDate(new Date()) : null })} />
                         {settings.testMode && <div className="mb-4"><label className="text-xs font-bold text-gray-400 ml-1">日付</label><input type="date" className="w-full p-3 border border-gray-200 rounded-2xl bg-gray-50" value={settings.testDate || ''} onChange={(e) => setSettings({ ...settings, testDate: e.target.value })} /></div>}
-                        <div className="flex gap-3 mt-5">
-                            <button onClick={exportData} className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"><Download size={16}/> バックアップ</button>
-                            <label className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-200 transition-colors"><Upload size={16}/> 復元<input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { const d = JSON.parse(evt.target.result); setProfiles(d.profiles); setActiveProfileId(d.activeProfileId); setSettings(d.settings); alert("データを復元しました"); }; r.readAsText(file); }}/></label>
+                        
+                        <div className="flex flex-col gap-3 mt-5">
+                            <div className="flex gap-3">
+                                <button onClick={exportData} className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"><Download size={16}/> バックアップ</button>
+                                <label className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-200 transition-colors"><Upload size={16}/> 復元<input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { const d = JSON.parse(evt.target.result); setProfiles(d.profiles); setActiveProfileId(d.activeProfileId); setSettings(d.settings); alert("データを復元しました"); }; r.readAsText(file); }}/></label>
+                            </div>
+                             <button onClick={copyToClipboard} className="w-full bg-gray-50 py-2 rounded-xl text-xs font-bold text-gray-400 flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors">データをコピー（テキスト）</button>
                         </div>
                     </div>
 
