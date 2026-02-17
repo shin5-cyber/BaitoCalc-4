@@ -1065,6 +1065,10 @@
             const [isJobEditModalOpen, setIsJobEditModalOpen] = useState(false);
             const [editingJobData, setEditingJobData] = useState({ name: '', wage: 0, payDay: 0, color: '', weekendBonus: { sat: 0, sun: 0 }, timeBonus: {} });
             const [showTimeBonus, setShowTimeBonus] = useState(false);
+            
+            // Backup Modal State
+            const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+            const [backupString, setBackupString] = useState('');
 
             useEffect(() => {
                 setEditingName(activeProfile.name);
@@ -1125,34 +1129,53 @@
             };
             const handleTimeBonusChange = (hour, amount) => setEditingJobData(prev => ({ ...prev, timeBonus: { ...prev.timeBonus, [hour]: parseInt(amount) || 0 } }));
             
-            const exportData = async () => {
+            // --- Backup Logic ---
+            const handleOpenBackup = () => {
                 const dataStr = JSON.stringify({ profiles, activeProfileId, settings }, null, 2);
-                const fileName = `baitocalc_backup_${new Date().toISOString().slice(0,10)}.json`;
+                setBackupString(dataStr);
+                setIsBackupModalOpen(true);
+            };
 
-                // Try Web Share API first (Great for iPad/iPhone)
-                if (navigator.canShare && navigator.share) {
-                    try {
-                        const file = new File([dataStr], fileName, { type: "application/json" });
-                        if (navigator.canShare({ files: [file] })) {
-                            await navigator.share({
-                                files: [file],
-                                title: 'BaitoCalc バックアップ',
-                                text: 'BaitoCalcのバックアップデータです。'
-                            });
-                            return; // Success
-                        }
-                    } catch (err) {
-                        // User cancelled or error, fall through to download
-                        if (err.name !== 'AbortError') {
-                            console.error(err);
-                        } else {
-                            return; // Cancelled
-                        }
-                    }
+            const handleCopyText = () => {
+                if (!backupString) return;
+                
+                // 1. Try navigator.clipboard
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(backupString).then(() => {
+                        showAlert("コピーしました！\nメモ帳などに貼り付けて保存してください。");
+                    }).catch(err => {
+                        fallbackCopyText(backupString);
+                    });
+                } else {
+                    // 2. Fallback
+                    fallbackCopyText(backupString);
                 }
+            };
 
-                // Fallback: Classic Download
-                const blob = new Blob([dataStr], { type: 'application/json' });
+            const fallbackCopyText = (text) => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showAlert("コピーしました！\nメモ帳などに貼り付けて保存してください。");
+                    } else {
+                        showAlert("コピーに失敗しました。\n表示されているテキストを手動で全選択してコピーしてください。");
+                    }
+                } catch (err) {
+                    showAlert("コピーに失敗しました。\n表示されているテキストを手動で全選択してコピーしてください。");
+                }
+                document.body.removeChild(textArea);
+            };
+
+            const handleDownloadFile = () => {
+                const fileName = `baitocalc_backup_${new Date().toISOString().slice(0,10)}.json`;
+                const blob = new Blob([backupString], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -1161,17 +1184,6 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                
-                showAlert(`バックアップファイルを保存しました。\n\n【iPad/iPhoneの方】\n1. Safariのアドレスバー横の下矢印（↓）または「ぁあ」をタップ\n2. 「ダウンロード」を選択\n3. ファイルアプリの「ダウンロード」フォルダに保存されています。`);
-            };
-
-            const copyToClipboard = () => {
-                 const dataStr = JSON.stringify({ profiles, activeProfileId, settings }, null, 2);
-                 navigator.clipboard.writeText(dataStr).then(() => {
-                     showAlert("データをクリップボードにコピーしました。\nメモ帳などに貼り付けて保存してください。");
-                 }).catch(err => {
-                     showAlert("コピーに失敗しました。");
-                 });
             };
 
             return (
@@ -1181,12 +1193,12 @@
                         <Toggle label="テストモード (日付操作)" checked={settings.testMode} onChange={(val) => setSettings({ ...settings, testMode: val, testDate: val ? formatDate(new Date()) : null })} />
                         {settings.testMode && <div className="mb-4"><label className="text-xs font-bold text-gray-400 ml-1">日付</label><input type="date" className="w-full p-3 border border-gray-200 rounded-2xl bg-gray-50" value={settings.testDate || ''} onChange={(e) => setSettings({ ...settings, testDate: e.target.value })} /></div>}
                         
-                        <div className="flex flex-col gap-3 mt-5">
+                        <div className="mt-5">
+                            <p className="text-xs text-gray-400 mb-2 font-bold ml-1">データの保存・移行</p>
                             <div className="flex gap-3">
-                                <button onClick={exportData} className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"><Download size={16}/> バックアップ</button>
-                                <label className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-200 transition-colors"><Upload size={16}/> 復元<input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { const d = JSON.parse(evt.target.result); setProfiles(d.profiles); setActiveProfileId(d.activeProfileId); setSettings(d.settings); alert("データを復元しました"); }; r.readAsText(file); }}/></label>
+                                <button onClick={handleOpenBackup} className="flex-1 bg-gray-100 py-3 rounded-2xl text-xs font-bold text-gray-600 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"><Download size={16}/> バックアップ作成</button>
+                                <label className="flex-1 bg-indigo-500 py-3 rounded-2xl text-xs font-bold text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-indigo-600 transition-colors active:scale-95 shadow-md"><Upload size={16}/> データ復元<input type="file" className="hidden" onChange={(e) => { const file = e.target.files[0]; if(!file) return; const r = new FileReader(); r.onload = (evt) => { try { const d = JSON.parse(evt.target.result); setProfiles(d.profiles); setActiveProfileId(d.activeProfileId); setSettings(d.settings); showAlert("データを復元しました"); } catch(err) { showAlert("ファイルの読み込みに失敗しました。"); } }; r.readAsText(file); }}/></label>
                             </div>
-                             <button onClick={copyToClipboard} className="w-full bg-gray-50 py-2 rounded-xl text-xs font-bold text-gray-400 flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors">データをコピー（テキスト）</button>
                         </div>
                     </div>
 
@@ -1286,6 +1298,27 @@
                             <div><label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">給料日</label><div className="flex items-center gap-2"><input type="number" className="w-24 p-3 border border-gray-200 rounded-2xl bg-gray-50 focus:bg-white outline-none" min="1" max="31" value={editingJobData.payDay} onChange={(e) => setEditingJobData({...editingJobData, payDay: e.target.value})} /><span className="text-sm font-bold text-gray-500">日</span></div></div>
                             <div><label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">カラー</label><div className="p-2 border border-gray-200 rounded-2xl bg-white inline-block"><input type="color" className="w-12 h-8 p-0 border-none rounded cursor-pointer bg-transparent" value={editingJobData.color} onChange={(e) => setEditingJobData({...editingJobData, color: e.target.value})} /></div></div>
                             <div className="pt-6 flex flex-col gap-3"><button onClick={saveJobEdit} className={`w-full py-4 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all ${theme.bg} hover:opacity-90`}>保存する</button><button onClick={deleteJob} className="w-full py-3 text-rose-500 font-bold rounded-2xl border border-transparent hover:bg-rose-50 transition-colors">このバイト先を削除</button></div>
+                        </div>
+                    </Modal>
+
+                    {/* New Backup Data Display Modal */}
+                    <Modal isOpen={isBackupModalOpen} onClose={() => setIsBackupModalOpen(false)} title="バックアップデータ">
+                        <div className="space-y-4">
+                            <p className="text-sm text-gray-600 font-medium">以下のテキストをすべてコピーして、メモ帳などに保存してください。<br/>復元の際は、保存したファイルを選択するか、テキストを貼り付けてください。</p>
+                            <textarea 
+                                className="w-full h-48 p-4 border border-gray-200 rounded-2xl text-xs font-mono bg-gray-50 focus:bg-white outline-none resize-none shadow-inner" 
+                                readOnly 
+                                value={backupString}
+                                onClick={(e) => e.target.select()}
+                            />
+                            <div className="flex flex-col gap-2">
+                                <button onClick={handleCopyText} className={`w-full py-4 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all ${theme.bg} hover:opacity-90 flex items-center justify-center gap-2`}>
+                                    <span className="text-lg">📋</span> コピーする
+                                </button>
+                                <button onClick={handleDownloadFile} className="w-full py-3 text-gray-500 font-bold rounded-2xl border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                                    <Download size={16} /> ファイルとして保存
+                                </button>
+                            </div>
                         </div>
                     </Modal>
                 </div>
