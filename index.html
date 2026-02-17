@@ -10,7 +10,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BaitoCalc">
-    <meta name="theme-color" content="#fff0f5">
+    
+    <!-- Dynamic Icons will be injected by JS -->
+    <link rel="icon" id="dynamic-favicon">
+    <link rel="apple-touch-icon" id="dynamic-apple-icon">
 
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -33,23 +36,15 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['"M PLUS Rounded 1c"', 'sans-serif'],
+                        sans: ['"M PLUS Rounded+1c"', 'sans-serif'],
                     },
                     colors: {
-                        // Pastel & Cute Colors
-                        indigo: { 500: '#a5b4fc', 600: '#818cf8' }, // Soft Indigo
-                        emerald: { 500: '#6ee7b7', 600: '#34d399' }, // Mint
-                        rose: { 500: '#fda4af', 600: '#fb7185' }, // Pastel Pink
-                        amber: { 500: '#fcd34d', 600: '#fbbf24' }, // Soft Yellow
-                        violet: { 500: '#c4b5fd', 600: '#a78bfa' }, // Lavender
-                        
-                        // Custom Cute Backgrounds
-                        cute: {
-                            bg: '#fff0f5', // Lavender Blush
-                            card: '#ffffff',
-                            text: '#4a4a4a',
-                            accent: '#ffb7b2'
-                        }
+                        // Pastel & Cute Colors (Customized for better visibility)
+                        indigo: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#a5b4fc', 600: '#818cf8' },
+                        emerald: { 50: '#ecfdf5', 100: '#d1fae5', 500: '#6ee7b7', 600: '#34d399' },
+                        rose: { 50: '#fff1f2', 100: '#ffe4e6', 500: '#fda4af', 600: '#fb7185' },
+                        amber: { 50: '#fffbeb', 100: '#fef3c7', 500: '#fcd34d', 600: '#fbbf24' },
+                        violet: { 50: '#f5f3ff', 100: '#ede9fe', 500: '#c4b5fd', 600: '#a78bfa' },
                     },
                     borderRadius: {
                         'xl': '1rem',
@@ -58,7 +53,6 @@
                     },
                     animation: {
                         'fadeIn': 'fadeIn 0.2s ease-out forwards',
-                        'bounce-slow': 'bounce 2s infinite',
                     },
                     keyframes: {
                         fadeIn: {
@@ -86,13 +80,13 @@
             background: transparent; 
         }
         ::-webkit-scrollbar-thumb {
-            background: #fbcfe8; 
+            background: #cbd5e1; 
             border-radius: 4px;
         }
         
         body {
-            background-color: #fff0f5; /* Cute background base */
-            overscroll-behavior-y: none; /* Prevent bounce scroll */
+            /* Background color will be handled by React App component */
+            overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
         }
     </style>
@@ -103,12 +97,69 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // --- Icon Generation Logic ---
+        // Generates a cute piggy bank icon dynamically
+        const generateAppIcons = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Background (Pink Rounded Rect)
+            ctx.fillStyle = '#fda4af'; // Rose-500
+            ctx.beginPath();
+            ctx.roundRect(0, 0, 512, 512, 100);
+            ctx.fill();
+
+            // Piggy Bank Icon (Simplified Shape)
+            ctx.fillStyle = '#ffffff';
+            // Body
+            ctx.beginPath();
+            ctx.ellipse(256, 280, 160, 130, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Head
+            ctx.beginPath();
+            ctx.ellipse(360, 220, 70, 70, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Ears
+            ctx.beginPath();
+            ctx.moveTo(350, 160); ctx.lineTo(380, 100); ctx.lineTo(410, 160);
+            ctx.moveTo(300, 170); ctx.lineTo(320, 110); ctx.lineTo(350, 170);
+            ctx.fill();
+            // Legs
+            ctx.beginPath();
+            ctx.roundRect(160, 380, 40, 60, 20);
+            ctx.roundRect(310, 380, 40, 60, 20);
+            ctx.fill();
+            // Eye
+            ctx.fillStyle = '#fda4af';
+            ctx.beginPath();
+            ctx.arc(380, 210, 10, 0, Math.PI*2);
+            ctx.fill();
+            // Coin Slot
+            ctx.fillStyle = '#fda4af';
+            ctx.beginPath();
+            ctx.roundRect(220, 180, 70, 15, 10);
+            ctx.fill();
+            
+            // Generate Data URL
+            const iconUrl = canvas.toDataURL('image/png');
+            
+            // Set Icons
+            const linkIcon = document.getElementById('dynamic-favicon');
+            if (linkIcon) linkIcon.href = iconUrl;
+            
+            const linkApple = document.getElementById('dynamic-apple-icon');
+            if (linkApple) linkApple.href = iconUrl;
+        };
+
+        // Call icon generation immediately
+        generateAppIcons();
+
         // --- Icons (Inline SVGs) ---
-        // Using slightly softer stroke width for cute look
         const IconProps = { strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" };
         
         const Icons = {
-            // ... existing icons ...
             Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
             CalendarDays: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>,
             Calculator: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" {...IconProps} {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>,
@@ -170,14 +221,49 @@
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         };
 
-        // --- Theme Definitions ---
+        // --- Theme Definitions (Revised for visibility) ---
 
         const THEMES = {
-            indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50', pageBg: 'bg-indigo-50' },
-            emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', border: 'border-emerald-500', light: 'bg-emerald-50', pageBg: 'bg-emerald-50' },
-            rose: { bg: 'bg-rose-500', text: 'text-rose-600', border: 'border-rose-500', light: 'bg-rose-50', pageBg: 'bg-rose-50' },
-            amber: { bg: 'bg-amber-500', text: 'text-amber-600', border: 'border-amber-500', light: 'bg-amber-50', pageBg: 'bg-amber-50' },
-            violet: { bg: 'bg-violet-500', text: 'text-violet-600', border: 'border-violet-500', light: 'bg-violet-50', pageBg: 'bg-violet-50' },
+            indigo: { 
+                label: 'Indigo',
+                bg: 'bg-indigo-500', 
+                text: 'text-indigo-600', 
+                border: 'border-indigo-500', 
+                light: 'bg-indigo-50', 
+                pageBg: 'bg-indigo-100' // Improved visibility
+            },
+            emerald: { 
+                label: 'Emerald',
+                bg: 'bg-emerald-500', 
+                text: 'text-emerald-600', 
+                border: 'border-emerald-500', 
+                light: 'bg-emerald-50', 
+                pageBg: 'bg-emerald-100' 
+            },
+            rose: { 
+                label: 'Rose',
+                bg: 'bg-rose-500', 
+                text: 'text-rose-600', 
+                border: 'border-rose-500', 
+                light: 'bg-rose-50', 
+                pageBg: 'bg-rose-100' 
+            },
+            amber: { 
+                label: 'Amber',
+                bg: 'bg-amber-500', 
+                text: 'text-amber-600', 
+                border: 'border-amber-500', 
+                light: 'bg-amber-50', 
+                pageBg: 'bg-amber-100' 
+            },
+            violet: { 
+                label: 'Violet',
+                bg: 'bg-violet-500', 
+                text: 'text-violet-600', 
+                border: 'border-violet-500', 
+                light: 'bg-violet-50', 
+                pageBg: 'bg-violet-100' 
+            },
         };
 
         const THEME_HEX = {
@@ -191,7 +277,7 @@
         const INITIAL_PROFILE = {
             id: 'default',
             name: 'ユーザー1',
-            theme: 'rose', // Default to cute pink
+            theme: 'rose', 
             taxLimit: 1030000,
             jobs: [],
             records: [], 
@@ -1082,6 +1168,19 @@
                                     onBlur={() => setEditingName(activeProfile.name)} 
                                 />
                                 {profiles.length > 1 && <button onClick={() => showConfirm('現在のプロファイルを削除しますか？', () => { const newProfiles = profiles.filter(p => p.id !== activeProfile.id); setProfiles(newProfiles); setActiveProfileId(newProfiles[0].id); })} className="p-3 bg-rose-50 text-rose-500 rounded-2xl hover:bg-rose-100 transition-colors"><Trash2 size={20} /></button>}
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className="text-xs font-bold text-gray-400 ml-1 mb-1 block">テーマカラー（背景色）</label>
+                            <div className="flex gap-3 mt-2">
+                                {Object.keys(THEMES).map(color => (
+                                    <button 
+                                        key={color} 
+                                        onClick={() => updateProfile({ theme: color })}
+                                        style={{ backgroundColor: THEME_HEX[color] }}
+                                        className={`w-10 h-10 rounded-full transition-transform border-4 border-white shadow-sm ${activeProfile.theme === color ? 'ring-2 ring-offset-2 ring-gray-300 scale-110' : 'hover:scale-105'}`}
+                                    />
+                                ))}
                             </div>
                         </div>
                         <div className="mt-4">
