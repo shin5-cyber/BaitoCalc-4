@@ -98,62 +98,48 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         // --- Icon Generation Logic ---
-        // Generates a cute piggy bank icon dynamically
         const generateAppIcons = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
 
-            // Background (Pink Rounded Rect)
-            ctx.fillStyle = '#fda4af'; // Rose-500
+            ctx.fillStyle = '#fda4af'; 
             ctx.beginPath();
             ctx.roundRect(0, 0, 512, 512, 100);
             ctx.fill();
 
-            // Piggy Bank Icon (Simplified Shape)
             ctx.fillStyle = '#ffffff';
-            // Body
             ctx.beginPath();
             ctx.ellipse(256, 280, 160, 130, 0, 0, Math.PI * 2);
             ctx.fill();
-            // Head
             ctx.beginPath();
             ctx.ellipse(360, 220, 70, 70, 0, 0, Math.PI * 2);
             ctx.fill();
-            // Ears
             ctx.beginPath();
             ctx.moveTo(350, 160); ctx.lineTo(380, 100); ctx.lineTo(410, 160);
             ctx.moveTo(300, 170); ctx.lineTo(320, 110); ctx.lineTo(350, 170);
             ctx.fill();
-            // Legs
             ctx.beginPath();
             ctx.roundRect(160, 380, 40, 60, 20);
             ctx.roundRect(310, 380, 40, 60, 20);
             ctx.fill();
-            // Eye
             ctx.fillStyle = '#fda4af';
             ctx.beginPath();
             ctx.arc(380, 210, 10, 0, Math.PI*2);
             ctx.fill();
-            // Coin Slot
             ctx.fillStyle = '#fda4af';
             ctx.beginPath();
             ctx.roundRect(220, 180, 70, 15, 10);
             ctx.fill();
             
-            // Generate Data URL
             const iconUrl = canvas.toDataURL('image/png');
-            
-            // Set Icons
             const linkIcon = document.getElementById('dynamic-favicon');
             if (linkIcon) linkIcon.href = iconUrl;
-            
             const linkApple = document.getElementById('dynamic-apple-icon');
             if (linkApple) linkApple.href = iconUrl;
         };
 
-        // Call icon generation immediately
         generateAppIcons();
 
         // --- Icons (Inline SVGs) ---
@@ -221,7 +207,7 @@
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         };
 
-        // --- Theme Definitions (Revised for visibility) ---
+        // --- Theme Definitions ---
 
         const THEMES = {
             indigo: { 
@@ -1135,9 +1121,16 @@
                 }
             };
             const handleTimeBonusChange = (hour, amount) => setEditingJobData(prev => ({ ...prev, timeBonus: { ...prev.timeBonus, [hour]: parseInt(amount) || 0 } }));
+            
             const exportData = () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ profiles, activeProfileId, settings }));
-                const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "baitocalc_backup.json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
+                const downloadAnchorNode = document.createElement('a'); 
+                downloadAnchorNode.setAttribute("href", dataStr); 
+                downloadAnchorNode.setAttribute("download", "baitocalc_backup.json"); 
+                document.body.appendChild(downloadAnchorNode); 
+                downloadAnchorNode.click(); 
+                downloadAnchorNode.remove();
+                showAlert("バックアップファイルの保存を開始しました。\nブラウザのダウンロードフォルダを確認してください。");
             };
 
             return (
