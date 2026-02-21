@@ -407,15 +407,19 @@
             
             const downloadCsvTemplate = () => {
                  const csv = "Date,StartTime,EndTime,JobName,Type,BreakMinutes\n2024-02-01,09:00,17:00,コンビニ,planned,60";
-                 const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                 if (isIOSDevice) {
-                     window.open('data:text/csv;charset=utf-8,' + encodeURIComponent(csv), '_blank');
-                 } else {
-                     const blob = new Blob([csv], { type: 'text/csv' });
-                     const url = URL.createObjectURL(blob);
-                     const a = document.createElement('a'); a.href = url; a.download = 'import_template.csv'; a.click();
-                     setTimeout(() => URL.revokeObjectURL(url), 1000);
-                 }
+                 const blob = new Blob([csv], { type: 'text/csv' });
+                 const url = URL.createObjectURL(blob);
+                 // テンプレートはそのまま<a>をクリックで動くデスクトップ向けのみ想定、
+                 // iPadでも使えるようリンクを別タブで開く
+                 const a = document.createElement('a');
+                 a.href = url;
+                 a.download = 'import_template.csv';
+                 a.target = '_blank';
+                 a.rel = 'noopener';
+                 document.body.appendChild(a);
+                 a.click();
+                 document.body.removeChild(a);
+                 setTimeout(() => URL.revokeObjectURL(url), 2000);
             };
 
             return (
@@ -547,6 +551,8 @@
                  setIsAdjModalOpen(true);
             };
 
+            const [csvDownloadLink, setCsvDownloadLink] = useState(null);
+
             const downloadReportCsv = () => {
                  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
                  let csvContent = "日付,バイト先,開始時間,終了時間,休憩(分),区分,概算給与\n";
@@ -556,21 +562,15 @@
                      if (!job) return;
                      csvContent += `${new Date(r.start).toLocaleDateString()},${job.name},${new Date(r.start).toLocaleTimeString()},${new Date(r.end).toLocaleTimeString()},${r.breakMinutes},${r.type === 'actual' ? '実績' : '予定'},${calculateShiftSalary(r, job)}\n`;
                  });
-                 // Adjustments
                  csvContent += "\n対象月,内容,金額\n";
                  currentYearAdjustments.forEach(a => csvContent += `${a.month},${a.note},${a.amount}\n`);
-                 
-                 const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-                 if (isIOSDevice) {
-                     const encoded = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
-                     const win = window.open(encoded, '_blank');
-                     if (!win) showAlert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-                 } else {
-                     const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
-                     const url = URL.createObjectURL(blob);
-                     const link = document.createElement("a"); link.setAttribute("href", url); link.setAttribute("download", `baitocalc_report_${currentYear}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                     setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                 if (csvDownloadLink && csvDownloadLink.url && csvDownloadLink.url.startsWith('blob:')) {
+                     URL.revokeObjectURL(csvDownloadLink.url);
                  }
+                 const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+                 const url = URL.createObjectURL(blob);
+                 setCsvDownloadLink({ url, filename: `baitocalc_report_${currentYear}.csv` });
             };
 
             return (
@@ -588,7 +588,19 @@
                         <div className="flex justify-between mb-3"><h3 className="text-gray-500 text-xs font-bold uppercase">手当・ボーナス</h3><button onClick={()=>handleOpenAdjModal()} className={`text-xs font-bold ${theme.text}`}><Plus size={14}/> 追加</button></div>
                         <div className="space-y-2">{currentYearAdjustments.map(a => <div key={a.id} className="flex justify-between p-2 bg-white border rounded shadow-sm"><span>{a.month} {a.note}</span><span>{formatCurrency(a.amount)}</span><button onClick={()=>handleDeleteAdj(a.id)}><Trash2 size={14}/></button></div>)}</div>
                     </div>
-                    <button onClick={downloadReportCsv} className={`w-full py-3 ${theme.bg} text-white rounded-xl font-bold text-xs ${theme.styles.button}`}><Download size={14}/> {currentYear}年分DL</button>
+                    <button onClick={downloadReportCsv} className={`w-full py-3 ${theme.bg} text-white rounded-xl font-bold text-xs ${theme.styles.button}`}><Download size={14}/> {currentYear}年分 ダウンロードリンクを準備</button>
+                    {csvDownloadLink && (
+                        <a
+                            href={csvDownloadLink.url}
+                            download={csvDownloadLink.filename}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`block w-full py-3 text-center text-white rounded-xl font-bold text-xs ${theme.bg} animate-pulse`}
+                            style={{textDecoration:'none'}}
+                        >
+                            ⬇️ 長押し→「ダウンロード」で保存 ({csvDownloadLink.filename})
+                        </a>
+                    )}
                      <Modal isOpen={isAdjModalOpen} onClose={() => setIsAdjModalOpen(false)} title={adjFormData.id ? "編集" : "追加"} theme={theme}>
                         <div className="space-y-4">
                             <div><label>月</label><input type="month" className={`w-full p-2 border rounded ${theme.styles.input}`} value={adjFormData.month} onChange={e=>setAdjFormData({...adjFormData, month:e.target.value})}/></div>
@@ -602,7 +614,7 @@
         };
 
         const SettingsScreen = ({ 
-            profiles, activeProfile, setProfiles, setActiveProfileId, 
+            profiles, activeProfile, activeProfileId, setProfiles, setActiveProfileId, 
             settings, setSettings, updateProfile, showAlert, showConfirm, theme 
         }) => {
             const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
@@ -618,13 +630,14 @@
             
             useEffect(() => { setEditingName(activeProfile.name); setEditingTaxLimit(activeProfile.taxLimit); }, [activeProfile]);
 
-            const handleOpenBackup = () => { setBackupString(JSON.stringify({ profiles, activeProfileId, settings }, null, 2)); setIsBackupModalOpen(true); };
+            const [downloadLink, setDownloadLink] = useState(null); // {url, filename, label}
+
+            const handleOpenBackup = () => { setBackupString(JSON.stringify({ profiles, activeProfileId, settings }, null, 2)); setDownloadLink(null); setIsBackupModalOpen(true); };
             const handleCopyText = async () => { 
                 try {
                     if (navigator.clipboard && navigator.clipboard.writeText) {
                         await navigator.clipboard.writeText(backupString);
                     } else {
-                        // フォールバック (古いブラウザ向け)
                         const ta = document.createElement("textarea");
                         ta.value = backupString;
                         ta.style.position = 'fixed';
@@ -641,27 +654,13 @@
                 }
             };
 
-            // iOS判定ユーティリティ
-            const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-            // iOS対応ファイルダウンロード汎用関数
-            const downloadFile = (content, filename, mimeType) => {
-                if (isIOS()) {
-                    // iOSはBlob URLのダウンロードが不可のためdata URIで新しいタブを開く
-                    const encoded = (mimeType.includes('json') || mimeType.includes('csv') || mimeType.includes('text'))
-                        ? 'data:' + mimeType + ';charset=utf-8,' + encodeURIComponent(
-                            typeof content === 'string' ? content : new TextDecoder().decode(content)
-                          )
-                        : null;
-                    if (encoded) {
-                        const win = window.open(encoded, '_blank');
-                        if (!win) {
-                            showAlert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
-                        }
-                    }
-                    return;
+            // 全デバイス共通ダウンロード関数
+            // 方針: a要素をDOMに置いてユーザーに直接タップさせる (window.open/a.clickは使わない)
+            const prepareDownload = (content, filename, mimeType, label) => {
+                // 既存URLがあれば解放
+                if (downloadLink && downloadLink.url && downloadLink.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(downloadLink.url);
                 }
-                // 通常ブラウザ
                 let blob;
                 if (content instanceof Uint8Array) {
                     blob = new Blob([content], { type: mimeType });
@@ -669,13 +668,7 @@
                     blob = new Blob([content], { type: mimeType });
                 }
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setDownloadLink({ url, filename, label });
             };
             
             // File Import Logic
@@ -718,7 +711,7 @@
             const handleTimeBonusChange = (hour, amount) => setEditingJobData(prev => ({ ...prev, timeBonus: { ...prev.timeBonus, [hour]: parseInt(amount) || 0 } }));
             const exportData = () => {
                 const jsonStr = JSON.stringify({ profiles, activeProfileId, settings }, null, 2);
-                downloadFile(jsonStr, 'baitocalc_backup.json', 'application/json');
+                prepareDownload(jsonStr, 'baitocalc_backup.json', 'application/json', 'JSONファイルをダウンロード');
             };
 
             return (
@@ -757,12 +750,24 @@
                         </div>
                     </Modal>
 
-                    <Modal isOpen={isBackupModalOpen} onClose={() => setIsBackupModalOpen(false)} title="バックアップデータ" theme={theme}>
+                    <Modal isOpen={isBackupModalOpen} onClose={() => { setIsBackupModalOpen(false); setDownloadLink(null); }} title="バックアップデータ" theme={theme}>
                         <div className="space-y-4">
-                            <p className="text-xs text-gray-500">📱 iPhoneの場合は「ファイル保存」ボタンでSafariが開きます。長押し→「ファイルに保存」で保存してください。</p>
+                            <p className="text-xs text-gray-500">💾「ダウンロードリンクを準備」→ 表示されるリンクを<strong>長押し</strong>→「ダウンロード」を選択してください。</p>
                             <textarea className="w-full h-40 p-2 text-xs border rounded font-mono" readOnly value={backupString} onClick={e=>e.target.select()}/>
                             <button onClick={handleCopyText} className={`w-full py-3 text-white rounded ${theme.bg} ${theme.styles.button}`}>📋 テキストをコピーする</button>
-                            <button onClick={exportData} className={`w-full py-3 border-2 ${theme.border} ${theme.text} rounded font-bold text-sm ${theme.styles.button} bg-white`}>💾 JSONファイルを保存する</button>
+                            <button onClick={exportData} className={`w-full py-3 border-2 ${theme.border} ${theme.text} rounded font-bold text-sm ${theme.styles.button} bg-white`}>💾 ダウンロードリンクを準備する</button>
+                            {downloadLink && (
+                                <a
+                                    href={downloadLink.url}
+                                    download={downloadLink.filename}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`block w-full py-3 text-center text-white rounded font-bold text-sm ${theme.bg} animate-pulse`}
+                                    style={{textDecoration:'none'}}
+                                >
+                                    ⬇️ 長押し→「ダウンロード」で保存 ({downloadLink.filename})
+                                </a>
+                            )}
                         </div>
                     </Modal>
                 </div>
@@ -862,7 +867,7 @@
                         {viewMode === 'dashboard' && <Dashboard activeProfile={activeProfile} today={today} theme={currentTheme} monthReport={monthReport} />}
                         {viewMode === 'schedule' && <Schedule activeProfile={activeProfile} today={today} theme={currentTheme} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} />}
                         {viewMode === 'reports' && <Reports activeProfile={activeProfile} today={today} theme={currentTheme} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} />}
-                        {viewMode === 'settings' && <SettingsScreen profiles={profiles} activeProfile={activeProfile} setProfiles={setProfiles} setActiveProfileId={setActiveProfileId} settings={settings} setSettings={setSettings} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} theme={currentTheme} />}
+                        {viewMode === 'settings' && <SettingsScreen key={activeProfileId} profiles={profiles} activeProfile={activeProfile} activeProfileId={activeProfileId} setProfiles={setProfiles} setActiveProfileId={setActiveProfileId} settings={settings} setSettings={setSettings} updateProfile={updateProfile} showAlert={showAlert} showConfirm={showConfirm} theme={currentTheme} />}
                     </main>
                     <Dialog isOpen={dialog.isOpen} type={dialog.type} message={dialog.message} onConfirm={dialog.onConfirm} onCancel={dialog.onCancel} theme={currentTheme} />
                     <Modal isOpen={isAddUserModalOpen} onClose={()=>setIsAddUserModalOpen(false)} title="ユーザー追加" theme={currentTheme}>
